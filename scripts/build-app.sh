@@ -11,7 +11,9 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$(swift build -c release --show-bin-path)/MultiDock" "$APP/Contents/MacOS/MultiDock"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 xattr -cr "$APP"
-codesign --force --sign - "$APP" >/dev/null
+# Ad-hoc signatures default to a cdhash requirement that changes every build,
+# which makes macOS forget the Accessibility grant. Pin it to the bundle ID.
+codesign --force --sign - -r='designated => identifier "com.hasang.multidock"' "$APP" >/dev/null
 echo "Built $APP"
 
 if [[ "${1:-}" == "--install" ]]; then
