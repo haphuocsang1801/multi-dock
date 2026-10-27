@@ -678,8 +678,13 @@ final class DockView: NSView {
         guard let controller else { return }
         controller.label.hide()
         StackPanel.dismissCurrent()
-        let item = index(at: p).map { items[$0] }
-        NSMenu.popUpContextMenu(controller.menu(for: item), with: event, for: self)
+        let i = index(at: p)
+        let menu = controller.menu(for: i.map { items[$0] })
+        if let i, let span = spans[i] {
+            popUp(menu, centeredOn: span.start + span.size / 2, outside: span)
+        } else {
+            popUp(menu, centeredOn: uv(p).x, outside: nil)
+        }
         pointerMovedOnScreen()
         if !isHovering { controller.hoverChanged(false) }
     }
@@ -687,9 +692,33 @@ final class DockView: NSView {
     func showMenu(_ menu: NSMenu, forItem item: DisplayItem) {
         guard let i = items.firstIndex(where: { $0.key == item.key }), let span = spans[i] else { return }
         controller?.label.hide()
-        let rect = iconFrame(item, start: span.start, size: span.size)
-        menu.popUp(positioning: nil, at: NSPoint(x: rect.minX, y: rect.maxY), in: self)
+        popUp(menu, centeredOn: span.start + span.size / 2, outside: span)
         pointerMovedOnScreen()
+    }
+
+    /// Opens `menu` beyond the plate (and the possibly magnified icon), centered
+    /// on the icon along the edge, the way the system Dock places its menus.
+    private func popUp(_ menu: NSMenu, centeredOn u: CGFloat, outside span: (start: CGFloat, size: CGFloat)?) {
+        let g = geometry
+        // The menu draws a few points above the requested corner, so this leaves a
+        // gap of about 9pt, close to the Dock's own.
+        let reach = DockGeometry.edgeGap + max(g.plateThickness, g.padding + (span?.size ?? 0)) + 4
+        // NSMenu.size counts ⌥-alternates (Force Quit) that are not drawn.
+        // Hiding them does not refresh the cached size, so take them out briefly.
+        let alternates = menu.items.enumerated().filter { $0.element.isAlternate }
+        alternates.reversed().forEach { menu.removeItem(at: $0.offset) }
+        let size = menu.size
+        alternates.forEach { menu.insertItem($0.element, at: $0.offset) }
+        let w = bounds.width, h = bounds.height
+        // popUp(positioning:at:in:) places the menu's top-left corner at the point.
+        let corner: NSPoint
+        switch g.edge {
+        case .bottom: corner = NSPoint(x: u - size.width / 2, y: reach + size.height)
+        case .top: corner = NSPoint(x: u - size.width / 2, y: h - reach)
+        case .left: corner = NSPoint(x: reach, y: h - u + size.height / 2)
+        case .right: corner = NSPoint(x: w - reach - size.width, y: h - u + size.height / 2)
+        }
+        menu.popUp(positioning: nil, at: corner, in: self)
     }
 
     // MARK: - Launch bounce

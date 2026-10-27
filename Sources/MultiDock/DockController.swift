@@ -421,6 +421,20 @@ final class DockController {
     }
 
     private func addAppOrFileItems(for item: DisplayItem, to menu: NSMenu) {
+        if let app = item.app, let entries = SystemDockMenu.entries(for: app), !entries.isEmpty {
+            addSystemDockItems(entries, of: app, for: item, to: menu)
+            return
+        }
+        if item.app != nil, !AppActions.isAccessibilityTrusted {
+            menu.addItem(ActionMenuItem("Cấp quyền Trợ năng để hiện menu đầy đủ…") {
+                AppActions.requestAccessibility()
+                // A grant left over from an older build looks enabled but no longer
+                // applies; the pane is where it can be removed and added again.
+                NSWorkspace.shared.open(URL(string:
+                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+            })
+            menu.addItem(.separator())
+        }
         if let app = item.app {
             let windows = AppActions.windows(pid: app.processIdentifier)
             for window in windows {
@@ -448,6 +462,50 @@ final class DockController {
         } else {
             menu.addItem(ActionMenuItem("Mở") { [weak self] in self?.activate(item, anchor: nil) })
         }
+    }
+
+    /// The system Dock's menu for the app, with its Options submenu swapped for
+    /// ours, since that one edits the system Dock rather than this one.
+    private func addSystemDockItems(_ entries: [SystemDockMenu.Entry], of app: NSRunningApplication,
+                                    for item: DisplayItem, to menu: NSMenu) {
+        for (index, entry) in entries.enumerated() {
+            if entry.isSeparator {
+                if menu.items.last?.isSeparatorItem == false { menu.addItem(.separator()) }
+                continue
+            }
+            if entry.hasSubmenu {
+                let options = NSMenuItem(title: entry.title, action: nil, keyEquivalent: "")
+                options.submenu = optionsMenu(for: item)
+                menu.addItem(options)
+                continue
+            }
+            if entry.isHeader {
+                if #available(macOS 14.0, *) {
+                    menu.addItem(.sectionHeader(title: entry.title))
+                } else {
+                    let header = NSMenuItem(title: entry.title, action: nil, keyEquivalent: "")
+                    header.isEnabled = false
+                    menu.addItem(header)
+                }
+                continue
+            }
+            let title = entry.title
+            let menuItem = ActionMenuItem(title, state: entry.mark.isEmpty ? .off : (entry.mark == "✓" ? .on : .mixed)) {
+                SystemDockMenu.press(index: index, title: title, of: app)
+            }
+            if !entry.mark.isEmpty, entry.mark != "✓" {
+                // Minimized windows carry a diamond in the Dock's menu.
+                menuItem.mixedStateImage = NSImage(systemSymbolName: "diamond.fill", accessibilityDescription: nil)?
+                    .withSymbolConfiguration(.init(pointSize: 7, weight: .regular))
+            }
+            menuItem.isEnabled = entry.enabled
+            if entry.isAlternate, let previous = menu.items.last, !previous.isSeparatorItem {
+                menuItem.isAlternate = true
+                menuItem.keyEquivalentModifierMask = .option
+            }
+            menu.addItem(menuItem)
+        }
+        if menu.items.last?.isSeparatorItem == true { menu.removeItem(at: menu.items.count - 1) }
     }
 
     private func optionsMenu(for item: DisplayItem) -> NSMenu {

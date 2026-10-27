@@ -17,7 +17,11 @@ thư mục gốc của repo:
 ```
 
 App ký ad-hoc. Lần đầu mở, nếu macOS chặn, bấm chuột phải vào app → Open.
-Mỗi lần build lại, chữ ký thay đổi nên có thể phải cấp lại quyền Trợ năng.
+Script ký app theo bundle ID (`com.hasang.multidock`) nên quyền Trợ năng được
+giữ qua các lần build. Nếu quyền từng cấp cho bản build cũ (trước khi đổi cách
+ký), mục MultiDock trong Trợ năng trông như đang bật nhưng không còn tác dụng:
+xóa nó (nút −) rồi thêm lại, hoặc chạy
+`tccutil reset Accessibility com.hasang.multidock` rồi cấp lại.
 
 ## Sử dụng
 
@@ -60,9 +64,15 @@ Thao tác trên Dock:
 - Bấm thư mục để mở dạng lưới (Stack) hoặc danh sách; chuột phải vào thư mục
   để đổi "Sắp xếp theo" (tên, ngày thêm, ngày sửa đổi, loại) và "Xem nội dung
   dưới dạng".
-- Chuột phải vào app: danh sách cửa sổ (cần quyền Trợ năng), Tùy chọn (Giữ
-  trong Dock, Hiển thị trong Finder, Chuyển sang Dock khác), Ẩn, Thoát; giữ ⌥
-  để thành Buộc thoát.
+- Chuột phải vào app đang chạy: menu giống hệt Dock macOS, gồm danh sách cửa
+  sổ (✓ cửa sổ hiện tại), các lệnh riêng của app (ví dụ Chrome: Hồ sơ, Cửa sổ
+  mới, Cửa sổ ẩn danh mới), Hiển thị tất cả cửa sổ, Ẩn, Thoát; giữ ⌥ để thành
+  Ẩn các app khác / Buộc thoát. Mục Tùy chọn là của MultiDock (Giữ trong Dock,
+  Hiển thị trong Finder, Chuyển sang Dock khác).
+  Ứng dụng chỉ đưa menu này cho Dock hệ thống, nên MultiDock đọc nó qua quyền
+  Trợ năng và chạy lệnh qua Dock hệ thống; menu của Dock hệ thống mở thoáng
+  (~0,2 giây) trên màn hình chứa Dock hệ thống. Chưa cấp quyền Trợ năng thì
+  menu rút gọn: Tùy chọn, Ẩn, Thoát.
 - Chuột phải vào Thùng rác: Mở, Dọn sạch Thùng rác (có hỏi xác nhận).
 - Chuột phải vào vạch ngăn hoặc nền Dock: bật/tắt ẩn, phóng to, vị trí,
   màn hình, khóa nội dung, Cài đặt Dock…
@@ -97,8 +107,9 @@ quay về mặc định.
   hình đó, nên có thể đè lên MultiDock nếu cả hai cùng nằm ở cạnh dưới. Cách
   tránh: đặt MultiDock ở cạnh khác, hoặc chuyển Dock hệ thống sang trái/phải
   (Dock hệ thống ở trái/phải không nhảy màn hình).
-- Không có badge thông báo và "Hiển thị tất cả cửa sổ" (cần API riêng của
-  Apple).
+- Không có badge thông báo (cần API riêng của Apple).
+- Menu chuột phải là menu chuẩn của macOS, không có mũi tên chỉ vào icon như
+  menu của Dock hệ thống.
 - Các cài đặt về thu nhỏ cửa sổ (hiệu ứng Genie/Thu nhỏ, thu nhỏ vào biểu
   tượng app, bấm đúp thanh tiêu đề) chỉ Dock hệ thống điều khiển được, nên
   MultiDock không có.
