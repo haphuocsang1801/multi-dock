@@ -34,6 +34,7 @@ enum DockSection { case apps, others }
 /// thin padding, and the separator takes about half a tile.
 struct DockGeometry: Equatable {
     static let edgeGap: CGFloat = 5
+    static let largestIconSize: CGFloat = 128
 
     var edge: DockEdge = .bottom
     var iconSize: CGFloat = 64
@@ -170,9 +171,8 @@ final class DockView: NSView {
 
     func configure(edge: DockEdge, iconSize: CGFloat, magnifiedSize: CGFloat,
                    showIndicators: Bool, dimHidden: Bool, locked: Bool, style: DockStyle, scale: CGFloat) {
-        let needsIcons = scale != self.scale || max(iconSize, magnifiedSize)
-            != max(configuredIconSize, configuredMagnifiedSize)
-        let changed = needsIcons || edge != geometry.edge || iconSize != configuredIconSize
+        let scaleChanged = scale != self.scale
+        let changed = scaleChanged || edge != geometry.edge || iconSize != configuredIconSize
             || magnifiedSize != configuredMagnifiedSize || showIndicators != self.showIndicators
             || dimHidden != self.dimHidden || style != self.style
         if style != self.style {
@@ -191,7 +191,7 @@ final class DockView: NSView {
         guard changed || frame.size != iconHost.frame.size else { return }
         iconHost.frame = bounds
         updateEffectiveGeometry()
-        if needsIcons { layers.values.forEach { $0.pixelSize = 0 } }
+        if scaleChanged { layers.values.forEach { $0.pixelSize = 0 } }
         loadIcons()
         relayout(animated: false)
     }
@@ -254,8 +254,15 @@ final class DockView: NSView {
         loadIcons()
     }
 
+    /// While the separator is dragged the icons stay at the largest size, so each
+    /// step only rescales them instead of rendering every icon again.
+    private var iconPixelSize: Int {
+        let points = resizeStart != nil ? DockGeometry.largestIconSize : max(configuredIconSize, configuredMagnifiedSize)
+        return Int((points * scale).rounded(.up))
+    }
+
     private func loadIcons() {
-        let pixelSize = Int((max(configuredIconSize, configuredMagnifiedSize) * scale).rounded(.up))
+        let pixelSize = iconPixelSize
         for item in items where item.kind != .separator {
             guard let slot = layers[item.key] else { continue }
             let path = item.iconPath ?? item.dockItem?.path ?? item.appURL?.path
@@ -682,6 +689,7 @@ final class DockView: NSView {
         }
         if !locked, let i = slotIndex(at: p), items[i].kind == .separator {
             resizeStart = (NSEvent.mouseLocation, configuredIconSize)
+            loadIcons()
             if isHovering { endHover() }
             return
         }
@@ -723,6 +731,7 @@ final class DockView: NSView {
         }
         if resizeStart != nil {
             resizeStart = nil
+            loadIcons()
             pointerMovedOnScreen()
             return
         }

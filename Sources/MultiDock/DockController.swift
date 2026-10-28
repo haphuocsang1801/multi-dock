@@ -404,7 +404,7 @@ final class DockController {
     }
 
     func resize(to size: CGFloat) {
-        let value = Double(min(max(size, 16), 128).rounded())
+        let value = Double(min(max(size, 16), DockGeometry.largestIconSize).rounded())
         guard value != config.iconSize else { return }
         store?.updateDock(id) { dock in
             dock.iconSize = value
