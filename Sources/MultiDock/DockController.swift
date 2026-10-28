@@ -20,10 +20,21 @@ final class DockController {
     /// The system Dock is, or can appear, on this dock's edge of this display, so
     /// this dock stays out of sight instead of stacking on top of it.
     private var yieldsToSystemDock = false
+    /// The system Dock is showing at this dock's edge of this display right now.
+    private var systemDockHere = false
+    /// Hidden, yet still up on the display's ordinary spaces (see `hidesOnlyInFullScreen`).
+    private var isParked = false
 
     /// Auto-hide is on, the display shows a full-screen app, or the system Dock has this edge.
     private var autoHides: Bool {
         config.autoHide || (config.hideInFullScreen && isFullScreen) || yieldsToSystemDock
+    }
+
+    /// Only the full-screen space keeps the dock out of sight. It then stays up on
+    /// the ordinary spaces, so leaving full screen slides it in along with the rest
+    /// of the desktop, as the system Dock does, rather than once the switch has ended.
+    private var hidesOnlyInFullScreen: Bool {
+        isFullScreen && config.hideInFullScreen && !config.autoHide && !systemDockHere
     }
 
     private var store: ConfigStore? { manager?.store }
@@ -59,12 +70,12 @@ final class DockController {
         let frame = windowFrame(cross: DockGeometry.crossLength(iconSize: size, magnifiedSize: magnified))
         if panel.frame != frame { panel.setFrame(frame, display: false) }
         root.frame = NSRect(origin: .zero, size: frame.size)
-        dockView.frame = NSRect(origin: isAutoHidden ? hiddenOffset : .zero, size: frame.size)
+        dockView.frame = NSRect(origin: isAutoHidden && !isParked ? hiddenOffset : .zero, size: frame.size)
         dockView.configure(edge: cfg.edge, iconSize: size, magnifiedSize: magnified,
                            showIndicators: cfg.showIndicators, dimHidden: cfg.dimHiddenApps,
                            locked: cfg.locked, style: cfg.style, scale: screen.backingScaleFactor)
         refreshItems()
-        (isFullScreen, yieldsToSystemDock) = readScreenState()
+        (isFullScreen, systemDockHere, yieldsToSystemDock) = readScreenState()
         updateAutoHide()
         if !isAutoHidden { panel.orderFrontRegardless() }
         syncFullScreenSpaces()
@@ -174,14 +185,14 @@ final class DockController {
         }
     }
 
-    private func readScreenState() -> (fullScreen: Bool, yields: Bool) {
-        guard let monitor = manager?.monitor else { return (false, false) }
+    private func readScreenState() -> (fullScreen: Bool, systemDockHere: Bool, yields: Bool) {
+        guard let monitor = manager?.monitor else { return (false, false, false) }
         let id = screen.stableID
         let fullScreen = monitor.spaces[id]?.showsFullScreen ?? false
+        let here = monitor.systemDockScreenID == id && SystemDock.edge == config.edge
         // In full screen the system Dock appears at the pointer's edge on its own.
-        let yields = (monitor.systemDockScreenID == id && SystemDock.edge == config.edge)
-            || (config.hideInFullScreen && fullScreen && SystemDock.occupies(config.edge, of: screen))
-        return (fullScreen, yields)
+        let yields = here || (config.hideInFullScreen && fullScreen && SystemDock.occupies(config.edge, of: screen))
+        return (fullScreen, here, yields)
     }
 
     /// Re-reads full screen and the system Dock's whereabouts; when either makes
@@ -190,9 +201,9 @@ final class DockController {
         // Last, so the dock is already hidden if a full-screen space just came up.
         defer { syncFullScreenSpaces() }
         let state = readScreenState()
-        guard state != (isFullScreen, yieldsToSystemDock) else { return }
+        guard state != (isFullScreen, systemDockHere, yieldsToSystemDock) else { return }
         let enteredFullScreen = state.fullScreen && !isFullScreen
-        (isFullScreen, yieldsToSystemDock) = state
+        (isFullScreen, systemDockHere, yieldsToSystemDock) = state
         updateAutoHide()
         // The system Dock arrives under the pointer, so this one leaves even mid-hover.
         if autoHides, !isAutoHidden, !dockView.isHovering || yieldsToSystemDock {
@@ -257,6 +268,8 @@ final class DockController {
             if isAutoHidden { reveal() }
             return
         }
+        // What keeps the dock hidden can change while it already is.
+        if isAutoHidden, isParked != hidesOnlyInFullScreen { park() }
         if yieldsToSystemDock {
             trigger?.orderOut(nil)
             trigger = nil
@@ -303,6 +316,12 @@ final class DockController {
         guard isAutoHidden else { return }
         isAutoHidden = false
         trigger?.orderOut(nil)
+        if isParked, isFullScreen {
+            // Slide in from the edge, committed before the full-screen space gets the panel.
+            dockView.setFrameOrigin(hiddenOffset)
+            CATransaction.flush()
+        }
+        isParked = false
         syncFullScreenSpaces()
         panel.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { ctx in
@@ -318,7 +337,10 @@ final class DockController {
         guard autoHides, !isAutoHidden else { return }
         isAutoHidden = true
         label.hide()
-        if !animated { panel.orderOut(nil) }
+        if !animated {
+            // Gone from the full-screen space at once; parking follows below.
+            if hidesOnlyInFullScreen { syncFullScreenSpaces() } else { panel.orderOut(nil) }
+        }
         // Even unanimated, this replaces any slide still in flight.
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = animated ? config.autoHideDuration : 0
@@ -326,10 +348,22 @@ final class DockController {
             dockView.animator().setFrameOrigin(hiddenOffset)
         }, completionHandler: { [weak self] in
             guard let self, self.isAutoHidden else { return }
-            self.panel.orderOut(nil)
-            self.syncFullScreenSpaces()
+            self.park()
             self.trigger?.orderFrontRegardless()
         })
+    }
+
+    /// Settles a hidden dock: up on the ordinary spaces while only full screen
+    /// hides it, otherwise out of sight everywhere.
+    private func park() {
+        isParked = hidesOnlyInFullScreen
+        if isParked { panel.orderFrontRegardless() } else { panel.orderOut(nil) }
+        // Off the full-screen space before the dock moves back into place.
+        syncFullScreenSpaces()
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0
+            dockView.animator().setFrameOrigin(isParked ? .zero : hiddenOffset)
+        }
     }
 
     private func scheduleHide(after delay: TimeInterval) {
