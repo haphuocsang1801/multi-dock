@@ -193,6 +193,8 @@ struct DockSettingsForm: View {
                 }
                 Toggle("Tự động ẩn khi app ở chế độ toàn màn hình", isOn: $dock.hideInFullScreen)
                     .help("Dock tránh sang một bên khi màn hình này đang có app toàn màn hình; đưa chuột ra cạnh màn hình để hiện lại. Nếu Dock hệ thống nằm cùng cạnh, chỉ Dock hệ thống hiện để hai Dock không chồng lên nhau")
+                Toggle("Giữ chỗ cho Dock khi phóng to cửa sổ", isOn: $dock.reserveSpace)
+                    .help("Cửa sổ phóng to hoặc xếp kín màn hình sẽ dừng ở mép Dock như với Dock hệ thống, thay vì nằm dưới Dock. Cần quyền Trợ năng; không áp dụng khi Dock đang ẩn")
                 Toggle("Hiệu ứng khi mở ứng dụng", isOn: $dock.bounceOnLaunch)
                 Toggle("Hiển thị chỉ báo cho ứng dụng đang mở", isOn: $dock.showIndicators)
                 Toggle("Làm mờ biểu tượng của ứng dụng bị ẩn", isOn: $dock.dimHiddenApps)
@@ -286,7 +288,7 @@ struct GeneralSettingsView: View {
                     }
                 }
             } footer: {
-                Text("Không bắt buộc. Khi có quyền, bấm vào app trên một Dock sẽ đưa đúng cửa sổ của app nằm trên màn hình đó lên trước.")
+                Text("Không bắt buộc. Khi có quyền, bấm vào app trên một Dock sẽ đưa đúng cửa sổ của app nằm trên màn hình đó lên trước, và cửa sổ phóng to sẽ dừng ở mép Dock thay vì nằm dưới Dock.")
                     .foregroundStyle(.secondary)
             }
             Section {

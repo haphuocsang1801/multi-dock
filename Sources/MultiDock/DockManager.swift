@@ -8,6 +8,7 @@ final class DockManager {
     var openSettings: (() -> Void)?
 
     private var byID: [UUID: DockController] = [:]
+    private let windowAvoider = WindowAvoider()
     private var cancellables: Set<AnyCancellable> = []
     private var screenObserver: NSObjectProtocol?
     private var appearanceObservers: [NSObjectProtocol] = []
@@ -27,6 +28,9 @@ final class DockManager {
     init(store: ConfigStore, monitor: RunningAppsMonitor) {
         self.store = store
         self.monitor = monitor
+        windowAvoider.reservedAreas = { [weak self] in
+            self?.byID.values.compactMap(\.reservedArea) ?? []
+        }
 
         // @Published delivers the new value before the property is updated, so
         // reconcile works from the value it is handed.
@@ -35,10 +39,13 @@ final class DockManager {
             .store(in: &cancellables)
 
         monitor.onChange = { [weak self] in
-            self?.byID.values.forEach {
+            guard let self else { return }
+            self.byID.values.forEach {
                 $0.updateScreenState()
                 $0.refreshItems()
             }
+            // Also picks up newly launched apps and a freshly granted Accessibility permission.
+            self.syncWindowAvoider(self.store.config)
         }
         monitor.onAppUsed = { [weak self] url in
             let path = url.resolvingSymlinksInPath().path
@@ -154,6 +161,12 @@ final class DockManager {
         }
         // Also tells each dock where the system Dock is, so every dock needs the scan.
         monitor.needsWindowTracking = !cfg.docks.isEmpty
+        syncWindowAvoider(cfg)
+    }
+
+    private func syncWindowAvoider(_ cfg: AppConfig) {
+        let enabled = cfg.docks.contains { $0.reserveSpace && byID[$0.id] != nil }
+        windowAvoider.sync(enabled: enabled, pids: monitor.apps.map(\.processIdentifier))
     }
 
     /// The dock whose plate is under `point` (screen coordinates), if any.

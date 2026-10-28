@@ -138,7 +138,8 @@ enum AppActions {
         }
     }
 
-    private static func frame(of window: AXUIElement) -> CGRect? {
+    /// Window frame in Cocoa screen coordinates.
+    static func frame(of window: AXUIElement) -> CGRect? {
         var posValue: CFTypeRef?
         var sizeValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &posValue) == .success,
@@ -153,7 +154,7 @@ enum AppActions {
         return NSScreen.cocoaRect(fromCG: CGRect(origin: origin, size: size))
     }
 
-    private static func boolAttribute(_ element: AXUIElement, _ name: String) -> Bool {
+    static func boolAttribute(_ element: AXUIElement, _ name: String) -> Bool {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return false }
         return (value as? Bool) ?? false

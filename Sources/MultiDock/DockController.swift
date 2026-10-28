@@ -194,6 +194,22 @@ final class DockController {
 
     var isYieldingToSystemDock: Bool { yieldsToSystemDock }
 
+    /// The strip windows should stop at: the resting plate's depth from the edge,
+    /// along the whole edge. Nil while the dock is tucked away or the option is off.
+    var reservedArea: ReservedArea? {
+        guard config.reserveSpace, !autoHides, panel.isVisible else { return nil }
+        let depth = DockGeometry.edgeGap + dockView.geometry.plateThickness
+        let vf = screen.visibleFrame
+        let rect: NSRect
+        switch config.edge {
+        case .bottom: rect = NSRect(x: vf.minX, y: vf.minY, width: vf.width, height: depth)
+        case .top: rect = NSRect(x: vf.minX, y: vf.maxY - depth, width: vf.width, height: depth)
+        case .left: rect = NSRect(x: vf.minX, y: vf.minY, width: depth, height: vf.height)
+        case .right: rect = NSRect(x: vf.maxX - depth, y: vf.minY, width: depth, height: vf.height)
+        }
+        return ReservedArea(rect: rect, edge: config.edge)
+    }
+
     /// Whether `point` is within this dock's reach of its screen edge, where the
     /// system Dock would slide in if it shares the edge.
     func isNearEdge(_ point: NSPoint) -> Bool {

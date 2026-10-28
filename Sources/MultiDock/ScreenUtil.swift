@@ -48,4 +48,10 @@ extension NSScreen {
         let primaryHeight = screens.first?.frame.height ?? 0
         return CGRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
     }
+
+    /// The inverse of `cocoaRect(fromCG:)`, for positioning windows through Accessibility.
+    static func cgRect(fromCocoa rect: CGRect) -> CGRect {
+        let primaryHeight = screens.first?.frame.height ?? 0
+        return CGRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
+    }
 }

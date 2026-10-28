@@ -51,7 +51,8 @@ Biểu tượng Dock trên menu bar → **Cài đặt…**:
   hình đó có app toàn màn hình (mặc định bật; đưa chuột ra cạnh màn hình để
   hiện lại, giống Dock macOS — nhưng nếu Dock hệ thống nằm cùng cạnh thì
   MultiDock ẩn hẳn và nhường cho Dock hệ thống, vì macOS luôn hiện Dock hệ
-  thống ở cạnh đó khi toàn màn hình), hiệu ứng nảy khi mở
+  thống ở cạnh đó khi toàn màn hình), giữ chỗ cho Dock khi phóng to cửa sổ
+  (mặc định bật, xem bên dưới), hiệu ứng nảy khi mở
   ứng dụng, chỉ báo app đang mở, làm mờ icon app bị ẩn, hiển thị app gần đây,
   hiển thị Thùng rác, khóa nội dung Dock.
 - **App đang chạy**: chỉ mục đã ghim / app có cửa sổ trên màn hình này (mặc
@@ -84,7 +85,16 @@ Thao tác trên Dock:
 
 Tab **Chung**: mở cùng lúc đăng nhập; cấp quyền Trợ năng (không bắt buộc) để
 khi bấm app trên một Dock, cửa sổ của app nằm trên màn hình đó được đưa lên
-trước, và để menu chuột phải liệt kê các cửa sổ.
+trước, để menu chuột phải liệt kê các cửa sổ, và để giữ chỗ cho Dock.
+
+**Giữ chỗ cho Dock**: macOS chỉ chừa chỗ cho Dock hệ thống, nên cửa sổ phóng
+to (nút xanh, bấm đúp thanh tiêu đề, Cửa sổ › Lấp đầy, xếp ô) vẫn phủ xuống
+dưới MultiDock. Khi bật, MultiDock theo dõi việc đổi kích thước cửa sổ qua quyền
+Trợ năng và cắt cửa sổ lại cho dừng ở mép Dock, giống Dock hệ thống. Kéo di
+chuyển cửa sổ thì không bị can thiệp (macOS cũng cho kéo cửa sổ xuống dưới
+Dock); đang kéo mép để đổi cỡ thì đợi thả chuột mới cắt. Không áp dụng khi Dock
+đang ẩn (tự ẩn, toàn màn hình, nhường cho Dock hệ thống) và với cửa sổ toàn màn
+hình.
 
 Lần chạy đầu tiên tự tạo một Dock ở cạnh dưới cho mỗi màn hình phụ (màn hình
 chính vẫn dùng Dock hệ thống), sao chép sẵn nội dung và kích thước của Dock
@@ -118,6 +128,10 @@ quay về mặc định.
   đáy màn hình khác. Muốn MultiDock luôn hiện: đặt MultiDock ở cạnh khác, hoặc
   chuyển Dock hệ thống sang trái/phải (Dock hệ thống ở trái/phải không nhảy
   màn hình).
+- Giữ chỗ cho Dock là cắt cửa sổ sau khi app đã phóng to nó, nên cửa sổ có thể
+  phủ kín màn hình trong chốc lát rồi mới co lên. Cửa sổ đã phóng to từ trước khi
+  bật tính năng chỉ được cắt ở lần đổi cỡ kế tiếp. App có kích thước tối thiểu
+  lớn hơn chỗ còn lại hoặc không cho đổi cỡ qua Trợ năng thì không co được.
 - Không có badge thông báo (cần API riêng của Apple).
 - Menu chuột phải là menu chuẩn của macOS, không có mũi tên chỉ vào icon như
   menu của Dock hệ thống.
