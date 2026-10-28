@@ -108,6 +108,8 @@ final class DockView: NSView {
         let dot = CALayer()
         var pixelSize = 0
         var iconPath: String?
+        /// The undimmed icon while the slot shows as pressed.
+        var normalContents: Any?
     }
 
     private struct DragState {
@@ -270,6 +272,7 @@ final class DockView: NSView {
             slot.pixelSize = pixelSize
             slot.iconPath = path
             slot.icon.contentsScale = scale
+            slot.normalContents = nil
             slot.icon.contents = IconCache.shared.image(path: path, app: item.app, pixelSize: pixelSize)
         }
     }
@@ -669,16 +672,31 @@ final class DockView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for (k, slot) in layers {
-            let pressed = k == key
-            if pressed, slot.icon.filters == nil {
-                let darken = CIFilter(name: "CIColorControls")!
-                darken.setValue(-0.28, forKey: kCIInputBrightnessKey)
-                slot.icon.filters = [darken]
-            } else if !pressed, slot.icon.filters != nil {
-                slot.icon.filters = nil
+            if k == key, slot.normalContents == nil, let image = slot.icon.contents {
+                slot.normalContents = image
+                slot.icon.contents = Self.dimmed(image as! CGImage)
+            } else if k != key, let normal = slot.normalContents {
+                slot.icon.contents = normal
+                slot.normalContents = nil
             }
         }
         CATransaction.commit()
+    }
+
+    /// Scales every sRGB channel to 56%, which is how far the system Dock dims a
+    /// pressed icon. Brightness filters subtract instead and muddy the colors.
+    private static func dimmed(_ image: CGImage) -> CGImage? {
+        guard let ctx = CGContext(
+            data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        let rect = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        ctx.draw(image, in: rect)
+        ctx.setBlendMode(.sourceAtop)
+        ctx.setFillColor(CGColor(gray: 0, alpha: 0.44))
+        ctx.fill(rect)
+        return ctx.makeImage()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -759,6 +777,9 @@ final class DockView: NSView {
         StackPanel.dismissCurrent()
         let i = index(at: p)
         let menu = controller.menu(for: i.map { items[$0] })
+        // The icon stays darkened while its menu is open, as in the system Dock.
+        setPressed(i.map { items[$0].key })
+        defer { setPressed(nil) }
         if let i, let span = spans[i] {
             popUp(menu, centeredOn: span.start + span.size / 2, outside: span)
         } else {
