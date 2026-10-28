@@ -16,6 +16,15 @@ final class DockController {
     private var hideWork: DispatchWorkItem?
     private var revealWork: DispatchWorkItem?
     private(set) var isAutoHidden = false
+    private var isFullScreen = false
+    /// The system Dock is, or can appear, on this dock's edge of this display, so
+    /// this dock stays out of sight instead of stacking on top of it.
+    private var yieldsToSystemDock = false
+
+    /// Auto-hide is on, the display shows a full-screen app, or the system Dock has this edge.
+    private var autoHides: Bool {
+        config.autoHide || (config.hideInFullScreen && isFullScreen) || yieldsToSystemDock
+    }
 
     private var store: ConfigStore? { manager?.store }
     private static let recentLimit = 3
@@ -55,6 +64,7 @@ final class DockController {
                            showIndicators: cfg.showIndicators, dimHidden: cfg.dimHiddenApps,
                            locked: cfg.locked, scale: screen.backingScaleFactor)
         refreshItems()
+        (isFullScreen, yieldsToSystemDock) = readScreenState()
         updateAutoHide()
         if !isAutoHidden { panel.orderFrontRegardless() }
     }
@@ -158,11 +168,57 @@ final class DockController {
         }
     }
 
+    private func readScreenState() -> (fullScreen: Bool, yields: Bool) {
+        guard let monitor = manager?.monitor else { return (false, false) }
+        let id = screen.stableID
+        let fullScreen = monitor.fullScreenIDs.contains(id)
+        // In full screen the system Dock appears at the pointer's edge on its own.
+        let yields = (monitor.systemDockScreenID == id && SystemDock.edge == config.edge)
+            || (config.hideInFullScreen && fullScreen && SystemDock.occupies(config.edge, of: screen))
+        return (fullScreen, yields)
+    }
+
+    /// Re-reads full screen and the system Dock's whereabouts; when either makes
+    /// the dock step aside, it goes at once rather than after the usual idle delay.
+    func updateScreenState() {
+        let state = readScreenState()
+        guard state != (isFullScreen, yieldsToSystemDock) else { return }
+        (isFullScreen, yieldsToSystemDock) = state
+        updateAutoHide()
+        // The system Dock arrives under the pointer, so this one leaves even mid-hover.
+        if autoHides, !isAutoHidden, !dockView.isHovering || yieldsToSystemDock {
+            hideWork?.cancel()
+            hide()
+        }
+    }
+
+    var isYieldingToSystemDock: Bool { yieldsToSystemDock }
+
+    /// Whether `point` is within this dock's reach of its screen edge, where the
+    /// system Dock would slide in if it shares the edge.
+    func isNearEdge(_ point: NSPoint) -> Bool {
+        let f = screen.frame
+        guard f.contains(point) else { return false }
+        let reach = (config.edge.isHorizontal ? panel.frame.height : panel.frame.width) + 4
+        switch config.edge {
+        case .bottom: return point.y - f.minY < reach
+        case .top: return f.maxY - point.y < reach
+        case .left: return point.x - f.minX < reach
+        case .right: return f.maxX - point.x < reach
+        }
+    }
+
     private func updateAutoHide() {
-        guard config.autoHide else {
+        guard autoHides else {
             trigger?.orderOut(nil)
             trigger = nil
             if isAutoHidden { reveal() }
+            return
+        }
+        if yieldsToSystemDock {
+            trigger?.orderOut(nil)
+            trigger = nil
+            if !isAutoHidden, !dockView.isHovering { scheduleHide(after: 0.8) }
             return
         }
         if trigger == nil {
@@ -216,7 +272,7 @@ final class DockController {
     }
 
     private func hide() {
-        guard config.autoHide, !isAutoHidden else { return }
+        guard autoHides, !isAutoHidden else { return }
         isAutoHidden = true
         label.hide()
         NSAnimationContext.runAnimationGroup({ ctx in
@@ -232,7 +288,7 @@ final class DockController {
 
     private func scheduleHide(after delay: TimeInterval) {
         hideWork?.cancel()
-        guard config.autoHide else { return }
+        guard autoHides else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self, !self.dockView.isHovering else { return }
             self.hide()
@@ -584,6 +640,11 @@ final class DockController {
         menu.addItem(ActionMenuItem(config.autoHide ? "Tắt ẩn" : "Bật ẩn") { [weak self] in
             guard let self else { return }
             self.store?.updateDock(self.id) { $0.autoHide.toggle() }
+        })
+        menu.addItem(ActionMenuItem("Ẩn khi toàn màn hình", state: config.hideInFullScreen ? .on : .off) {
+            [weak self] in
+            guard let self else { return }
+            self.store?.updateDock(self.id) { $0.hideInFullScreen.toggle() }
         })
         menu.addItem(ActionMenuItem(config.magnification ? "Tắt phóng to" : "Bật phóng to") { [weak self] in
             guard let self else { return }

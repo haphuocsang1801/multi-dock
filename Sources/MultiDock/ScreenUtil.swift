@@ -1,5 +1,11 @@
 import AppKit
 
+@_silgen_name("CGSMainConnectionID")
+private func CGSMainConnectionID() -> Int32
+
+@_silgen_name("CGSCopyManagedDisplaySpaces")
+private func CGSCopyManagedDisplaySpaces(_ connection: Int32) -> Unmanaged<CFArray>?
+
 extension NSScreen {
     var displayID: CGDirectDisplayID {
         (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
@@ -16,6 +22,24 @@ extension NSScreen {
 
     static func withStableID(_ id: String) -> NSScreen? {
         screens.first { $0.stableID == id }
+    }
+
+    /// Stable IDs of displays currently showing a full-screen space (a single
+    /// full-screen app or Split View). Read from the window server's space list,
+    /// which has no public API; the same call AltTab and yabai rely on.
+    static var fullScreenIDs: Set<String> {
+        guard let displays = CGSCopyManagedDisplaySpaces(CGSMainConnectionID())?.takeRetainedValue()
+                as? [[String: Any]] else { return [] }
+        var ids = Set<String>()
+        for display in displays {
+            guard let current = display["Current Space"] as? [String: Any],
+                  (current["type"] as? Int) == 4,
+                  let identifier = display["Display Identifier"] as? String else { continue }
+            // "Main" means displays share one set of spaces.
+            if identifier == "Main" { return Set(screens.map(\.stableID)) }
+            ids.insert(identifier.uppercased())
+        }
+        return ids
     }
 
     /// Converts a rect in global CoreGraphics coordinates (top-left origin of the

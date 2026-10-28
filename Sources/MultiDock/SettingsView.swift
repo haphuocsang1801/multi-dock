@@ -191,6 +191,8 @@ struct DockSettingsForm: View {
                         }
                     }
                 }
+                Toggle("Tự động ẩn khi app ở chế độ toàn màn hình", isOn: $dock.hideInFullScreen)
+                    .help("Dock tránh sang một bên khi màn hình này đang có app toàn màn hình; đưa chuột ra cạnh màn hình để hiện lại. Nếu Dock hệ thống nằm cùng cạnh, chỉ Dock hệ thống hiện để hai Dock không chồng lên nhau")
                 Toggle("Hiệu ứng khi mở ứng dụng", isOn: $dock.bounceOnLaunch)
                 Toggle("Hiển thị chỉ báo cho ứng dụng đang mở", isOn: $dock.showIndicators)
                 Toggle("Làm mờ biểu tượng của ứng dụng bị ẩn", isOn: $dock.dimHiddenApps)

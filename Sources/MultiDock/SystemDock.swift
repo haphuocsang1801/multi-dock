@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// Reads the system Dock's preferences so a MultiDock can start as a copy of it.
 enum SystemDock {
@@ -6,6 +6,24 @@ enum SystemDock {
 
     private static func value(_ key: String) -> Any? {
         CFPreferencesCopyAppValue(key as CFString, domain)
+    }
+
+    /// Whether the system Dock can appear at `edge` of `screen`. At the bottom it
+    /// follows the pointer to any display; at a side it stays on the outermost one.
+    static func occupies(_ edge: DockEdge, of screen: NSScreen) -> Bool {
+        guard self.edge == edge else { return false }
+        switch edge {
+        case .bottom: return true
+        case .left: return screen.frame.minX <= (NSScreen.screens.map(\.frame.minX).min() ?? 0)
+        case .right: return screen.frame.maxX >= (NSScreen.screens.map(\.frame.maxX).max() ?? 0)
+        case .top: return false
+        }
+    }
+
+    /// The edge the system Dock is set to (System Settings › Desktop & Dock).
+    static var edge: DockEdge {
+        CFPreferencesAppSynchronize(domain)
+        return (value("orientation") as? String).flatMap(DockEdge.init(rawValue:)) ?? .bottom
     }
 
     private static let finder = URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app")

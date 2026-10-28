@@ -47,7 +47,11 @@ Biểu tượng Dock trên menu bar → **Cài đặt…**:
 - **Vị trí**: màn hình, cạnh (dưới/trái/phải/trên).
 - **Kích thước và phóng to**: kích thước 16–128, bật/tắt phóng to và mức
   phóng to (giống Dock hệ thống).
-- **Hành vi**: tự động ẩn/hiện (kèm độ trễ và tốc độ), hiệu ứng nảy khi mở
+- **Hành vi**: tự động ẩn/hiện (kèm độ trễ và tốc độ), tự động ẩn khi màn
+  hình đó có app toàn màn hình (mặc định bật; đưa chuột ra cạnh màn hình để
+  hiện lại, giống Dock macOS — nhưng nếu Dock hệ thống nằm cùng cạnh thì
+  MultiDock ẩn hẳn và nhường cho Dock hệ thống, vì macOS luôn hiện Dock hệ
+  thống ở cạnh đó khi toàn màn hình), hiệu ứng nảy khi mở
   ứng dụng, chỉ báo app đang mở, làm mờ icon app bị ẩn, hiển thị app gần đây,
   hiển thị Thùng rác, khóa nội dung Dock.
 - **App đang chạy**: chỉ mục đã ghim / app có cửa sổ trên màn hình này (mặc
@@ -74,7 +78,7 @@ Thao tác trên Dock:
   (~0,2 giây) trên màn hình chứa Dock hệ thống. Chưa cấp quyền Trợ năng thì
   menu rút gọn: Tùy chọn, Ẩn, Thoát.
 - Chuột phải vào Thùng rác: Mở, Dọn sạch Thùng rác (có hỏi xác nhận).
-- Chuột phải vào vạch ngăn hoặc nền Dock: bật/tắt ẩn, phóng to, vị trí,
+- Chuột phải vào vạch ngăn hoặc nền Dock: bật/tắt ẩn, ẩn khi toàn màn hình, phóng to, vị trí,
   màn hình, khóa nội dung, Cài đặt Dock…
 - ⌘-click để hiện mục trong Finder.
 
@@ -93,20 +97,27 @@ quay về mặc định.
 
 ## Hiệu năng
 
-- Không có timer chạy liên tục. Danh sách app cập nhật theo thông báo của
-  NSWorkspace; việc quét cửa sổ theo màn hình chỉ chạy mỗi ~2 giây khi có Dock
-  dùng chế độ "app trên màn hình này".
+- Danh sách app cập nhật theo thông báo của NSWorkspace. Việc quét cửa sổ
+  (app nào ở màn hình nào, Dock hệ thống đang hiện ở đâu) chạy mỗi ~2 giây
+  khi có ít nhất một Dock, và ~10 lần/giây chỉ trong lúc con trỏ ở sát cạnh
+  có Dock hệ thống (hoặc lúc MultiDock đang nhường chỗ cho nó).
 - Icon được vẽ một lần thành texture; phóng to chỉ đổi khung layer
   (Core Animation, chạy trên GPU).
-- Theo dõi chuột toàn cục chỉ bật trong lúc con trỏ đang ở trên Dock.
+- Theo dõi di chuyển chuột toàn cục luôn bật nhưng chỉ so tọa độ; phần việc
+  nặng (phóng to, nhãn tên) chỉ chạy khi con trỏ ở trên Dock.
 - Đo thực tế lúc rảnh: 0.0% CPU, ~16 MB bộ nhớ.
 
 ## Hạn chế đã biết
 
 - Dock hệ thống của macOS tự nhảy sang màn hình khi bạn đưa chuột xuống đáy màn
-  hình đó, nên có thể đè lên MultiDock nếu cả hai cùng nằm ở cạnh dưới. Cách
-  tránh: đặt MultiDock ở cạnh khác, hoặc chuyển Dock hệ thống sang trái/phải
-  (Dock hệ thống ở trái/phải không nhảy màn hình).
+  hình đó (và luôn hiện ở đáy màn hình nào khi có app toàn màn hình). MultiDock
+  không chặn được việc này; thay vào đó, khi Dock hệ thống hiện trên màn hình
+  và cùng cạnh với một MultiDock, MultiDock đó ẩn đi (chậm khoảng nửa giây) và
+  hiện lại khi Dock hệ thống rời đi, để hai Dock không đè lên nhau. Nếu Dock
+  hệ thống không tự ẩn, nó ở lại màn hình đó cho tới khi bạn đưa chuột xuống
+  đáy màn hình khác. Muốn MultiDock luôn hiện: đặt MultiDock ở cạnh khác, hoặc
+  chuyển Dock hệ thống sang trái/phải (Dock hệ thống ở trái/phải không nhảy
+  màn hình).
 - Không có badge thông báo (cần API riêng của Apple).
 - Menu chuột phải là menu chuẩn của macOS, không có mũi tên chỉ vào icon như
   menu của Dock hệ thống.

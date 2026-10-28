@@ -1,12 +1,17 @@
 import AppKit
 
-/// Tracks running GUI apps and which displays they have visible windows on.
-/// Driven by NSWorkspace notifications; the window scan only runs (on a slow,
-/// tolerant timer) while some dock needs per-display information.
+/// Tracks running GUI apps, which displays they have visible windows on, and
+/// which display hosts the system Dock. Driven by NSWorkspace notifications; the
+/// window scan only runs (on a tolerant timer) while some dock needs it.
 final class RunningAppsMonitor {
     private(set) var apps: [NSRunningApplication] = []
     private(set) var hiddenPIDs: Set<pid_t> = []
     private var pidsByScreen: [String: Set<pid_t>] = [:]
+    /// Displays whose current space is a full-screen one.
+    private(set) var fullScreenIDs: Set<String> = []
+    /// The display the system Dock is showing on, if it is showing. It moves to
+    /// whichever display the pointer lingers at the bottom of.
+    private(set) var systemDockScreenID: String?
 
     var onChange: (() -> Void)?
     /// Called with an app's bundle URL when it launches or quits (feeds "recent apps").
@@ -46,8 +51,10 @@ final class RunningAppsMonitor {
                     self.onAppUsed?(url)
                 }
                 self.scheduleRefresh()
-                // New apps usually open their first window a moment after launching.
-                if note.name == NSWorkspace.didLaunchApplicationNotification {
+                // New apps usually open their first window a moment after launching,
+                // and entering or leaving full screen finishes its animation later.
+                if note.name == NSWorkspace.didLaunchApplicationNotification
+                    || note.name == NSWorkspace.activeSpaceDidChangeNotification {
                     self.scheduleRefresh(after: 0.8)
                 }
             })
@@ -83,13 +90,17 @@ final class RunningAppsMonitor {
         let newApps = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isTerminated && $0.processIdentifier != selfPID
         }
-        let newMap = needsWindowTracking ? scanWindows() : [:]
+        let scan = needsWindowTracking ? scanWindows() : (pidsByScreen: [:], systemDock: nil)
         let newHidden = Set(newApps.filter(\.isHidden).map(\.processIdentifier))
+        let newFullScreen = NSScreen.fullScreenIDs
         let changed = newApps.map(\.processIdentifier) != apps.map(\.processIdentifier)
-            || newMap != pidsByScreen || newHidden != hiddenPIDs
+            || scan.pidsByScreen != pidsByScreen || newHidden != hiddenPIDs || newFullScreen != fullScreenIDs
+            || scan.systemDock != systemDockScreenID
         apps = newApps
-        pidsByScreen = newMap
+        pidsByScreen = scan.pidsByScreen
+        systemDockScreenID = scan.systemDock
         hiddenPIDs = newHidden
+        fullScreenIDs = newFullScreen
         if changed { onChange?() }
     }
 
@@ -103,30 +114,48 @@ final class RunningAppsMonitor {
         timer = t
     }
 
-    private func scanWindows() -> [String: Set<pid_t>] {
+    private func scanWindows() -> (pidsByScreen: [String: Set<pid_t>], systemDock: String?) {
         let screens = NSScreen.screens.map { ($0.stableID, $0.frame) }
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
-                as? [[String: Any]] else { return [:] }
+                as? [[String: Any]] else { return ([:], nil) }
+        let dockPID = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock")
+            .first?.processIdentifier
+        let dockLevel = Int(CGWindowLevelForKey(.dockWindow))
         var map: [String: Set<pid_t>] = [:]
+        var systemDock: String?
         for info in list {
-            guard (info[kCGWindowLayer as String] as? Int) == 0,
-                  let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+            guard let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+                  let layer = info[kCGWindowLayer as String] as? Int else { continue }
+            // The system Dock draws in one window spanning its display, present only while it shows.
+            if pid == dockPID, layer == dockLevel,
+               let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
+               let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) {
+                systemDock = Self.screenID(for: NSScreen.cocoaRect(fromCG: bounds), in: screens)
+                continue
+            }
+            guard layer == 0,
                   pid != selfPID,
                   (info[kCGWindowAlpha as String] as? Double ?? 1) > 0.01,
                   let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
                   let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
                   bounds.width >= 60, bounds.height >= 60
             else { continue }
-            let rect = NSScreen.cocoaRect(fromCG: bounds)
-            var best: (id: String, area: CGFloat)?
-            for (id, frame) in screens {
-                let inter = rect.intersection(frame)
-                guard !inter.isNull else { continue }
-                let area = inter.width * inter.height
-                if area > (best?.area ?? 0) { best = (id, area) }
+            if let id = Self.screenID(for: NSScreen.cocoaRect(fromCG: bounds), in: screens) {
+                map[id, default: []].insert(pid)
             }
-            if let best { map[best.id, default: []].insert(pid) }
         }
-        return map
+        return (map, systemDock)
+    }
+
+    /// The display holding most of `rect`.
+    private static func screenID(for rect: CGRect, in screens: [(String, CGRect)]) -> String? {
+        var best: (id: String, area: CGFloat)?
+        for (id, frame) in screens {
+            let inter = rect.intersection(frame)
+            guard !inter.isNull else { continue }
+            let area = inter.width * inter.height
+            if area > (best?.area ?? 0) { best = (id, area) }
+        }
+        return best?.id
     }
 }

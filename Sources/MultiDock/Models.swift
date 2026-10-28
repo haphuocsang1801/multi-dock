@@ -107,6 +107,8 @@ struct DockConfig: Codable, Identifiable, Equatable {
     var autoHide = false
     var autoHideDelay: Double = 0
     var autoHideDuration: Double = 0.25
+    /// Tucks the dock away, like auto-hide, while its display shows a full-screen app.
+    var hideInFullScreen = true
     var showIndicators = true
     var runningMode: RunningAppsMode = .thisScreen
     var showRecents = false
@@ -138,6 +140,7 @@ struct DockConfig: Codable, Identifiable, Equatable {
         autoHide = try value(.autoHide, false)
         autoHideDelay = try value(.autoHideDelay, 0)
         autoHideDuration = try value(.autoHideDuration, 0.25)
+        hideInFullScreen = try value(.hideInFullScreen, true)
         showIndicators = try value(.showIndicators, true)
         runningMode = try value(.runningMode, .thisScreen)
         showRecents = try value(.showRecents, false)
