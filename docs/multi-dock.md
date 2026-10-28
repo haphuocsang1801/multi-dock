@@ -23,6 +23,11 @@ ký), mục MultiDock trong Trợ năng trông như đang bật nhưng không c�
 xóa nó (nút −) rồi thêm lại, hoặc chạy
 `tccutil reset Accessibility com.hasang.multidock` rồi cấp lại.
 
+GitHub Actions ([`.github/workflows/build.yml`](../.github/workflows/build.yml))
+build app trên runner `macos-26` mỗi khi push lên `main` hoặc mở PR, và đính
+`MultiDock.zip` vào trang của lần chạy đó. Để phát hành, push một tag dạng
+`v1.2.0`: workflow ghi số phiên bản vào app rồi tạo GitHub Release kèm file zip.
+
 ## Sử dụng
 
 Giao diện bám theo Dock của macOS (đo trực tiếp từ Dock hệ thống): các ô icon

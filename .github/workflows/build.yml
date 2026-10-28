@@ -1,0 +1,60 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # NSGlassEffectView needs the macOS 26 SDK, which ships with the runner's default Xcode.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Stamp version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          plutil -replace CFBundleShortVersionString -string "${GITHUB_REF_NAME#v}" Resources/Info.plist
+          plutil -replace CFBundleVersion -string "${{ github.run_number }}" Resources/Info.plist
+
+      - name: Build MultiDock.app
+        run: ./scripts/build-app.sh
+
+      - name: Verify signature
+        run: codesign --verify --strict --verbose=2 build/MultiDock.app
+
+      # ditto keeps the executable bit and the code signature, which a plain artifact upload drops.
+      - name: Package
+        run: ditto -c -k --keepParent build/MultiDock.app build/MultiDock.zip
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: build/MultiDock.zip
+          archive: false
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: MultiDock.zip
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" MultiDock.zip --repo "$GITHUB_REPOSITORY" --title "MultiDock $GITHUB_REF_NAME" --generate-notes
