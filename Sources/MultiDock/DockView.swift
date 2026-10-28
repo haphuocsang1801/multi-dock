@@ -779,9 +779,13 @@ final class DockView: NSView {
     /// on the icon along the edge, the way the system Dock places its menus.
     private func popUp(_ menu: NSMenu, centeredOn u: CGFloat, outside span: (start: CGFloat, size: CGFloat)?) {
         let g = geometry
-        // The menu draws a few points above the requested corner, so this leaves a
-        // gap of about 9pt, close to the Dock's own.
+        // The arrow's tip lands 4pt past the plate. Without the arrow the menu draws
+        // a few points above the requested corner, leaving about 9pt, close to the Dock's own.
         let reach = DockGeometry.edgeGap + max(g.plateThickness, g.padding + (span?.size ?? 0)) + 4
+        isMenuOpen = true
+        controller?.label.hide()
+        defer { isMenuOpen = false }
+        if popUpWithArrow(menu, toward: viewRect(u: u - 1, v: 0, du: 2, dv: reach)) { return }
         // NSMenu.size counts ⌥-alternates (Force Quit) that are not drawn.
         // Hiding them does not refresh the cached size, so take them out briefly.
         let alternates = menu.items.enumerated().filter { $0.element.isAlternate }
@@ -798,10 +802,32 @@ final class DockView: NSView {
         case .right: corner = NSPoint(x: w - reach - size.width, y: h - u + size.height / 2)
         }
         // popUp returns only once the menu closes.
-        isMenuOpen = true
-        controller?.label.hide()
         menu.popUp(positioning: nil, at: corner, in: self)
-        isMenuOpen = false
+    }
+
+    private static let calloutPopUp = NSSelectorFromString("_popUpMenuRelativeToRect:inView:preferredEdge:")
+
+    /// Opens `menu` on the far side of `anchor` with an arrow pointing at it, as
+    /// the system Dock does. Only a private NSMenu method draws that arrow, so this
+    /// returns false when it is missing and the caller places the menu itself.
+    /// Like popUp, it returns only once the menu closes.
+    private func popUpWithArrow(_ menu: NSMenu, toward anchor: NSRect) -> Bool {
+        guard menu.responds(to: Self.calloutPopUp), let window, let screen = window.screen else { return false }
+        // AppKit squeezes the menu to a sliver unless the anchor reaches about 8pt
+        // into the visible frame, which leaves out the system Dock's strip.
+        let anchorOnScreen = window.convertToScreen(convert(anchor, to: nil))
+        guard screen.visibleFrame.insetBy(dx: 8, dy: 8).intersects(anchorOnScreen) else { return false }
+        let edge: NSRectEdge
+        switch geometry.edge {
+        case .bottom: edge = .maxY
+        case .top: edge = .minY
+        case .left: edge = .maxX
+        case .right: edge = .minX
+        }
+        typealias PopUp = @convention(c) (NSMenu, Selector, NSRect, NSView, NSRectEdge) -> Void
+        let popUp = unsafeBitCast(menu.method(for: Self.calloutPopUp), to: PopUp.self)
+        popUp(menu, Self.calloutPopUp, anchor, self, edge)
+        return true
     }
 
     // MARK: - Launch bounce
