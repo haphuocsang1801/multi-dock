@@ -6,6 +6,8 @@
     <string>vi</string>
     <key>CFBundleExecutable</key>
     <string>MultiDock</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>com.hasang.multidock</string>
     <key>CFBundleInfoDictionaryVersion</key>

@@ -23,6 +23,11 @@ ký), mục MultiDock trong Trợ năng trông như đang bật nhưng không c�
 xóa nó (nút −) rồi thêm lại, hoặc chạy
 `tccutil reset Accessibility com.hasang.multidock` rồi cấp lại.
 
+Icon app vẽ ở [`Resources/AppIcon.svg`](../Resources/AppIcon.svg); build chỉ dùng
+`Resources/AppIcon.icns` đã tạo sẵn. Sửa SVG xong thì chạy
+`./scripts/make-icon.sh` (cần `rsvg-convert`: `brew install librsvg`) để tạo lại
+file `.icns`.
+
 GitHub Actions ([`.github/workflows/build.yml`](../.github/workflows/build.yml))
 build app trên runner `macos-26` mỗi khi push lên `main` hoặc mở PR, và đính
 `MultiDock.zip` vào trang của lần chạy đó. Để phát hành, push một tag dạng

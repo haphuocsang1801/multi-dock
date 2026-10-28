@@ -10,6 +10,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$(swift build -c release --show-bin-path)/MultiDock" "$APP/Contents/MacOS/MultiDock"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 xattr -cr "$APP"
 # Ad-hoc signatures default to a cdhash requirement that changes every build,
 # which makes macOS forget the Accessibility grant. Pin it to the bundle ID.
