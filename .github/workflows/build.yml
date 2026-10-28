@@ -53,6 +53,8 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: MultiDock.zip
+          # Without this the action unzips the release asset into MultiDock.app.
+          skip-decompress: true
 
       - name: Publish GitHub release
         env:
