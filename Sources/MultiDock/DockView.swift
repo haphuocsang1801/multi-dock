@@ -79,6 +79,8 @@ final class DockView: NSView {
     private var hoverU: CGFloat?
     private var hoveredKey: String?
     private var monitors: [Any] = []
+    /// The label shares the menu's window level, so it stays hidden while a menu is open.
+    private var isMenuOpen = false
 
     private var pressKey: String?
     private var pressPoint = NSPoint.zero
@@ -579,7 +581,7 @@ final class DockView: NSView {
     }
 
     private func updateLabel() {
-        guard let key = hoveredKey, pressKey == nil, let i = items.firstIndex(where: { $0.key == key }),
+        guard !isMenuOpen, let key = hoveredKey, pressKey == nil, let i = items.firstIndex(where: { $0.key == key }),
               let rect = screenRect(forItemAt: i) else {
             controller?.label.hide()
             return
@@ -718,7 +720,11 @@ final class DockView: NSView {
         case .left: corner = NSPoint(x: reach, y: h - u + size.height / 2)
         case .right: corner = NSPoint(x: w - reach - size.width, y: h - u + size.height / 2)
         }
+        // popUp returns only once the menu closes.
+        isMenuOpen = true
+        controller?.label.hide()
         menu.popUp(positioning: nil, at: corner, in: self)
+        isMenuOpen = false
     }
 
     // MARK: - Launch bounce
