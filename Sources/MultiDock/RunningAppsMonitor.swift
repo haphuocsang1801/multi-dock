@@ -7,8 +7,8 @@ final class RunningAppsMonitor {
     private(set) var apps: [NSRunningApplication] = []
     private(set) var hiddenPIDs: Set<pid_t> = []
     private var pidsByScreen: [String: Set<pid_t>] = [:]
-    /// Displays whose current space is a full-screen one.
-    private(set) var fullScreenIDs: Set<String> = []
+    /// Each display's full-screen spaces and the space it shows.
+    private(set) var spaces: [String: DisplaySpaces] = [:]
     /// The display the system Dock is showing on, if it is showing. It moves to
     /// whichever display the pointer lingers at the bottom of.
     private(set) var systemDockScreenID: String?
@@ -50,6 +50,9 @@ final class RunningAppsMonitor {
                    let url = app.bundleURL {
                     self.onAppUsed?(url)
                 }
+                // A dock can still land on a brand-new full-screen space, so the
+                // switch is acted on without waiting.
+                if note.name == NSWorkspace.activeSpaceDidChangeNotification { self.refresh() }
                 self.scheduleRefresh()
                 // New apps usually open their first window a moment after launching,
                 // and entering or leaving full screen finishes its animation later.
@@ -92,15 +95,15 @@ final class RunningAppsMonitor {
         }
         let scan = needsWindowTracking ? scanWindows() : (pidsByScreen: [:], systemDock: nil)
         let newHidden = Set(newApps.filter(\.isHidden).map(\.processIdentifier))
-        let newFullScreen = NSScreen.fullScreenIDs
+        let newSpaces = NSScreen.spaces
         let changed = newApps.map(\.processIdentifier) != apps.map(\.processIdentifier)
-            || scan.pidsByScreen != pidsByScreen || newHidden != hiddenPIDs || newFullScreen != fullScreenIDs
+            || scan.pidsByScreen != pidsByScreen || newHidden != hiddenPIDs || newSpaces != spaces
             || scan.systemDock != systemDockScreenID
         apps = newApps
         pidsByScreen = scan.pidsByScreen
         systemDockScreenID = scan.systemDock
         hiddenPIDs = newHidden
-        fullScreenIDs = newFullScreen
+        spaces = newSpaces
         if changed { onChange?() }
     }
 
