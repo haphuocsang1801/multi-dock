@@ -630,11 +630,6 @@ final class DockController {
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             })
         }
-        let others = manager?.controllers.filter { $0 !== self && !$0.config.locked } ?? []
-        if !others.isEmpty, item.kind != .trash {
-            options.addItem(.separator())
-            let sub = NSMenu()
-            for other in others {
         if let key = item.iconKey, let store {
             options.addItem(.separator())
             options.addItem(ActionMenuItem("Đổi biểu tượng…") {
@@ -645,6 +640,11 @@ final class DockController {
                 options.addItem(ActionMenuItem("Dùng biểu tượng gốc") { CustomIcons.reset(key, store: store) })
             }
         }
+        let others = manager?.controllers.filter { $0 !== self && !$0.config.locked } ?? []
+        if !others.isEmpty, item.kind != .trash {
+            options.addItem(.separator())
+            let sub = NSMenu()
+            for other in others {
                 sub.addItem(ActionMenuItem(other.config.title) { [weak self, weak other] in
                     guard let self, let other else { return }
                     self.transfer(item, to: other, at: Int.max)
