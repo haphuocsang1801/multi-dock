@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        allowCursorChangesInBackground()
         if store.isFirstRun { store.config.docks = Self.defaultDocks() }
         monitor = RunningAppsMonitor()
         manager = DockManager(store: store, monitor: monitor)

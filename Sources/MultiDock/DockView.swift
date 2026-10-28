@@ -86,6 +86,7 @@ final class DockView: NSView {
     private var pressPoint = NSPoint.zero
     private var drag: DragState?
     private var resizeStart: (point: NSPoint, size: CGFloat)?
+    private var showsResizeCursor = false
     private(set) var externalGap: (section: DockSection, index: Int)?
     private var dropTargetKey: String?
     private var bouncing: [String: Date] = [:]
@@ -528,16 +529,25 @@ final class DockView: NSView {
     }
 
     override func cursorUpdate(with event: NSEvent) {
-        let p = convert(event.locationInWindow, from: nil)
-        if !locked, let i = slotIndex(at: p), items[i].kind == .separator {
+        updateCursor(at: convert(event.locationInWindow, from: nil), force: true)
+    }
+
+    /// AppKit asks for a cursor only when the pointer enters the view, which is
+    /// over the plate, so every move re-checks whether it is on the separator.
+    private func updateCursor(at p: NSPoint, force: Bool = false) {
+        let onHandle = resizeStart != nil
+            || (!locked && slotIndex(at: p).map { items[$0].kind == .separator } == true)
+        if onHandle {
             (geometry.edge.isHorizontal ? NSCursor.resizeUpDown : NSCursor.resizeLeftRight).set()
-        } else {
+        } else if showsResizeCursor || force {
             NSCursor.arrow.set()
         }
+        showsResizeCursor = onHandle
     }
 
     private func handlePointer(_ p: NSPoint) {
         guard drag == nil, resizeStart == nil else { return }
+        updateCursor(at: p)
         if isInHoverRegion(p) {
             let entering = !isHovering
             if entering { beginHover() }
@@ -635,6 +645,7 @@ final class DockView: NSView {
             case .right: delta = start.point.x - now.x
             }
             controller?.resize(to: start.size + delta)
+            updateCursor(at: convert(event.locationInWindow, from: nil))
             return
         }
         let p = convert(event.locationInWindow, from: nil)

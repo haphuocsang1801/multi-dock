@@ -6,6 +6,17 @@ private func CGSMainConnectionID() -> Int32
 @_silgen_name("CGSCopyManagedDisplaySpaces")
 private func CGSCopyManagedDisplaySpaces(_ connection: Int32) -> Unmanaged<CFArray>?
 
+@_silgen_name("CGSSetConnectionProperty")
+private func CGSSetConnectionProperty(_ connection: Int32, _ target: Int32, _ key: CFString, _ value: CFTypeRef) -> CGError
+
+/// The window server ignores cursor changes from an app that is not active, and
+/// MultiDock never is, so the resize cursor over a dock's separator needs this.
+/// The connection property has no public equivalent.
+func allowCursorChangesInBackground() {
+    let connection = CGSMainConnectionID()
+    _ = CGSSetConnectionProperty(connection, connection, "SetsCursorInBackground" as CFString, kCFBooleanTrue)
+}
+
 extension NSScreen {
     var displayID: CGDirectDisplayID {
         (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
