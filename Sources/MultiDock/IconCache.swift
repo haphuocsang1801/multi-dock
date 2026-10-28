@@ -12,8 +12,8 @@ final class IconCache {
         if let cached = cache[key] { return cached }
 
         let image: NSImage
-        if let path, path.hasPrefix("/System/Library/CoreServices/"), !path.hasSuffix(".app"),
-           let file = NSImage(contentsOfFile: path) {
+        if let path, CustomIcons.isCustom(path) || (path.hasPrefix("/System/Library/CoreServices/")
+            && !path.hasSuffix(".app")), let file = NSImage(contentsOfFile: path) {
             image = file
         } else if let path, FileManager.default.fileExists(atPath: path) {
             image = NSWorkspace.shared.icon(forFile: path)

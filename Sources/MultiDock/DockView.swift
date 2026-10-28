@@ -19,6 +19,11 @@ struct DisplayItem: Equatable {
     var isApp: Bool { kind == .running || kind == .recent || dockItem?.kind == .app }
     var isFolder: Bool { dockItem?.kind == .folder }
     var fileURL: URL? { dockItem?.url ?? app?.bundleURL ?? appURL }
+    /// What a custom icon is stored under: the pinned path or the app bundle, so a
+    /// pinned app and the same app running unpinned share it.
+    var iconKey: String? {
+        dockItem?.path ?? (app?.bundleURL ?? appURL)?.resolvingSymlinksInPath().path
+    }
     /// Section a drop of this item belongs to.
     var section: DockSection { kind == .pinned && dockItem?.kind != .app ? .others : .apps }
 }
@@ -33,12 +38,15 @@ struct DockGeometry: Equatable {
     var edge: DockEdge = .bottom
     var iconSize: CGFloat = 64
     var magnifiedSize: CGFloat = 64
+    /// Space between neighbouring slots.
+    var gap: CGFloat = 0
+    var cornerRoundness: CGFloat = 0.27
 
     var magnify: Bool { magnifiedSize > iconSize + 0.5 }
     var padding: CGFloat { max(4, (iconSize * 0.085).rounded()) }
     var separatorLength: CGFloat { max(10, (iconSize * 0.5).rounded()) }
     var plateThickness: CGFloat { iconSize + padding * 2 }
-    var cornerRadius: CGFloat { (plateThickness * 0.27).rounded() }
+    var cornerRadius: CGFloat { (plateThickness * min(max(cornerRoundness, 0), 0.5)).rounded() }
     var dotSize: CGFloat { max(3, (iconSize * 0.045).rounded()) }
 
     /// Window depth perpendicular to the edge: room for magnified icons and the launch bounce.
@@ -63,9 +71,12 @@ final class DockView: NSView {
     private var showIndicators = true
     private var dimHidden = false
     private var locked = false
+    private var style = DockStyle()
     private var scale: CGFloat = 2
 
     private let plate: NSView
+    /// Sits on the plate and draws the theme: a solid fill, the border and its glow.
+    private let decor = NSView()
     private let iconHost = NSView()
     private var layers: [String: SlotLayers] = [:]
     private var freshKeys: Set<String> = []
@@ -125,12 +136,14 @@ final class DockView: NSView {
         plate.wantsLayer = true
         if plate is NSVisualEffectView {
             plate.layer?.masksToBounds = true
-            plate.layer?.borderWidth = 0.5
         }
+        decor.wantsLayer = true
+        decor.layer?.shadowOffset = .zero
         iconHost.wantsLayer = true
         iconHost.layerUsesCoreImageFilters = true
         iconHost.layerContentsRedrawPolicy = .never
         addSubview(plate)
+        addSubview(decor)
         addSubview(iconHost)
         registerForDraggedTypes([.fileURL])
         updateColors()
@@ -156,12 +169,18 @@ final class DockView: NSView {
     }
 
     func configure(edge: DockEdge, iconSize: CGFloat, magnifiedSize: CGFloat,
-                   showIndicators: Bool, dimHidden: Bool, locked: Bool, scale: CGFloat) {
+                   showIndicators: Bool, dimHidden: Bool, locked: Bool, style: DockStyle, scale: CGFloat) {
         let needsIcons = scale != self.scale || max(iconSize, magnifiedSize)
             != max(configuredIconSize, configuredMagnifiedSize)
         let changed = needsIcons || edge != geometry.edge || iconSize != configuredIconSize
             || magnifiedSize != configuredMagnifiedSize || showIndicators != self.showIndicators
-            || dimHidden != self.dimHidden
+            || dimHidden != self.dimHidden || style != self.style
+        if style != self.style {
+            self.style = style
+            geometry.gap = CGFloat(max(0, style.iconGap))
+            geometry.cornerRoundness = CGFloat(style.cornerRoundness)
+            updateColors()
+        }
         geometry.edge = edge
         configuredIconSize = iconSize
         configuredMagnifiedSize = magnifiedSize
@@ -222,7 +241,8 @@ final class DockView: NSView {
         var size = configuredIconSize
         if !items.isEmpty, mainLength > 0 {
             let units = CGFloat(tiles) + 0.5 * CGFloat(separators) + 0.17
-            size = min(size, max(16, ((mainLength - 24) / units).rounded(.down)))
+            let gaps = geometry.gap * CGFloat(items.count - 1)
+            size = min(size, max(16, ((mainLength - 24 - gaps) / units).rounded(.down)))
         }
         geometry.iconSize = size
         geometry.magnifiedSize = max(size, configuredMagnifiedSize)
@@ -247,16 +267,49 @@ final class DockView: NSView {
         }
     }
 
+    /// Applies the theme: plate kind, fill, border, glow, indicator and separator colors.
     private func updateColors() {
+        let s = style
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            let dot = NSColor.labelColor.withAlphaComponent(0.55).cgColor
-            let separator = NSColor.labelColor.withAlphaComponent(0.28).cgColor
+            let ink = s.usesSystemColors ? NSColor.labelColor : s.indicatorColor.nsColor
+            let dot = ink.withAlphaComponent(s.usesSystemColors ? 0.55 : ink.alphaComponent).cgColor
+            let separator = ink.withAlphaComponent(0.28 * (s.usesSystemColors ? 1 : 1.6)).cgColor
             for item in items {
                 guard let slot = layers[item.key] else { continue }
                 slot.dot.backgroundColor = dot
                 if item.kind == .separator { slot.icon.backgroundColor = separator }
             }
-            plate.layer?.borderColor = NSColor.white.withAlphaComponent(0.2).cgColor
+
+            let fill = s.backgroundColor.nsColor
+            let fillAlpha = fill.alphaComponent * CGFloat(min(max(s.backgroundOpacity, 0), 1))
+            plate.isHidden = s.background != .glass
+            if #available(macOS 26.0, *), let glass = plate as? NSGlassEffectView {
+                glass.tintColor = s.usesSystemColors ? nil : fill.withAlphaComponent(fillAlpha)
+            }
+
+            guard let layer = decor.layer else { return }
+            decor.isHidden = s.background == .none
+            switch s.background {
+            case .solid:
+                let color = s.usesSystemColors ? NSColor.windowBackgroundColor.withAlphaComponent(0.85)
+                    : fill.withAlphaComponent(fillAlpha)
+                layer.backgroundColor = color.cgColor
+            case .glass where !s.usesSystemColors:
+                // The glass tint alone barely shows (and the HUD material has none),
+                // so a translucent wash over the glass carries the color.
+                layer.backgroundColor = fill.withAlphaComponent(fillAlpha * 0.6).cgColor
+            default:
+                layer.backgroundColor = nil
+            }
+            // The system glass draws its own rim; the older material and themes need one.
+            let systemRim = s.usesSystemColors && (s.background == .solid || plate is NSVisualEffectView)
+            let border = s.usesSystemColors ? NSColor.white.withAlphaComponent(0.2) : s.borderColor.nsColor
+            layer.borderWidth = systemRim || !s.usesSystemColors ? CGFloat(max(0, s.borderWidth)) : 0
+            layer.borderColor = border.cgColor
+            let glow = s.glow && !s.usesSystemColors && s.borderWidth > 0
+            layer.shadowColor = border.withAlphaComponent(1).cgColor
+            layer.shadowRadius = glow ? 8 : 0
+            layer.shadowOpacity = glow ? 0.9 : 0
         }
     }
 
@@ -332,7 +385,7 @@ final class DockView: NSView {
         let g = geometry
         let base = entries.map(baseSize)
         let n = base.count
-        let content = (n == 0 ? g.iconSize : base.reduce(0, +)) + g.padding * 2
+        let content = (n == 0 ? g.iconSize : base.reduce(0, +) + g.gap * CGFloat(n - 1)) + g.padding * 2
         let stripStart = ((mainLength - content) / 2).rounded()
         guard n > 0 else {
             return Strip(starts: [], sizes: [], plateStart: stripStart, plateEnd: stripStart + content)
@@ -342,7 +395,7 @@ final class DockView: NSView {
         var u = stripStart + g.padding
         for size in base {
             baseStarts.append(u)
-            u += size
+            u += size + g.gap
         }
 
         var sizes = base
@@ -363,10 +416,11 @@ final class DockView: NSView {
                 provisional[i] = baseStarts[i] + grown
                 grown += sizes[i] - base[i]
             }
+            // Each slot owns the gap after it, so the strip stays continuous across gaps.
             var k = 0
             for i in 0..<n where p >= baseStarts[i] { k = i }
-            let fraction = min(max((p - baseStarts[k]) / base[k], 0), 1)
-            let shift = provisional[k] + fraction * sizes[k] - p
+            let fraction = min(max((p - baseStarts[k]) / (base[k] + g.gap), 0), 1)
+            let shift = provisional[k] + fraction * (sizes[k] + g.gap) - p
             starts = provisional.map { $0 - shift }
         }
         return Strip(starts: starts, sizes: sizes,
@@ -440,12 +494,14 @@ final class DockView: NSView {
         } else {
             plate.layer?.cornerRadius = g.cornerRadius
         }
+        decor.layer?.cornerRadius = g.cornerRadius
         // Always go through the animator: a zero-duration set also cancels an
         // in-flight resize, so pointer moves never fight an exit animation.
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = animated ? duration : 0
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
             plate.animator().frame = plateFrame
+            decor.animator().frame = plateFrame
         }
         if isHovering { updateLabel() }
     }
@@ -468,7 +524,8 @@ final class DockView: NSView {
         guard bounds.contains(p) else { return nil }
         let q = uv(p)
         guard q.y <= DockGeometry.edgeGap + geometry.padding + maxIconSize + 2 else { return nil }
-        for (i, span) in spans where q.x >= span.start && q.x < span.start + span.size {
+        let half = geometry.gap / 2
+        for (i, span) in spans where q.x >= span.start - half && q.x < span.start + span.size + half {
             return i
         }
         return nil

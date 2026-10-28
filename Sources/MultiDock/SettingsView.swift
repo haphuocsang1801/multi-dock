@@ -81,7 +81,7 @@ struct SettingsView: View {
             .frame(width: 210)
             Divider()
             if let id = selection, let binding = binding(for: id) {
-                DockSettingsForm(dock: binding)
+                DockSettingsForm(store: store, dock: binding)
             } else {
                 VStack(spacing: 8) {
                     Image(systemName: "dock.rectangle").font(.system(size: 40)).foregroundStyle(.secondary)
@@ -121,6 +121,7 @@ struct SettingsView: View {
 }
 
 struct DockSettingsForm: View {
+    @ObservedObject var store: ConfigStore
     @Binding var dock: DockConfig
 
     private var screenChoices: [ScreenChoice] {
@@ -173,6 +174,8 @@ struct DockSettingsForm: View {
                 }
             }
 
+            DockStyleSection(style: $dock.style)
+
             Section("Hành vi") {
                 Toggle("Tự động ẩn và hiện Dock", isOn: $dock.autoHide)
                 if dock.autoHide {
@@ -217,10 +220,19 @@ struct DockSettingsForm: View {
                 }
                 ForEach(dock.items) { item in
                     HStack {
-                        Image(nsImage: NSWorkspace.shared.icon(forFile: item.path))
-                            .resizable().frame(width: 20, height: 20)
+                        Image(nsImage: icon(for: item)).resizable().frame(width: 20, height: 20)
                         Text(item.name)
                         Spacer()
+                        Button { CustomIcons.choose(for: item.path, name: item.name, store: store) } label: {
+                            Image(systemName: "photo")
+                        }
+                        .help("Đổi biểu tượng")
+                        if store.config.customIcons[item.path] != nil {
+                            Button { CustomIcons.reset(item.path, store: store) } label: {
+                                Image(systemName: "arrow.uturn.backward")
+                            }
+                            .help("Dùng biểu tượng gốc")
+                        }
                         Button { move(item, by: -1) } label: { Image(systemName: "chevron.up") }
                             .disabled(dock.items.first?.id == item.id)
                         Button { move(item, by: 1) } label: { Image(systemName: "chevron.down") }
@@ -244,6 +256,11 @@ struct DockSettingsForm: View {
         .formStyle(.grouped)
     }
 
+    private func icon(for item: DockItem) -> NSImage {
+        store.config.customIcons[item.path].flatMap(NSImage.init(contentsOfFile:))
+            ?? NSWorkspace.shared.icon(forFile: item.path)
+    }
+
     private func move(_ item: DockItem, by delta: Int) {
         guard let i = dock.items.firstIndex(where: { $0.id == item.id }) else { return }
         let j = i + delta
@@ -265,6 +282,121 @@ struct DockSettingsForm: View {
             if !dock.items.contains(where: { $0.path == item.path }) { dock.items.append(item) }
         }
         dock.normalizeItems()
+    }
+}
+
+/// Theme, background and spacing of one dock. Editing a color or the border
+/// turns the theme into Custom, starting from what is on screen.
+struct DockStyleSection: View {
+    @Binding var style: DockStyle
+
+    var body: some View {
+        Section("Giao diện") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Chủ đề")
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 6)], spacing: 10) {
+                    ForEach(DockTheme.allCases) { theme in
+                        Button { style.apply(theme) } label: { swatch(theme) }
+                            .buttonStyle(.plain)
+                    }
+                }
+            }
+            Picker("Nền", selection: $style.background) {
+                ForEach(DockBackground.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            if style.usesSystemColors {
+                Text("Màu theo giao diện Sáng/Tối của macOS. Chọn một chủ đề khác hoặc Tùy chỉnh để tự chọn màu.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                if style.background != .none {
+                    ColorPicker("Màu nền", selection: color(\.backgroundColor), supportsOpacity: false)
+                    LabeledContent(style.background == .glass ? "Độ đậm màu kính" : "Độ đục của nền") {
+                        HStack {
+                            Slider(value: themed(\.backgroundOpacity), in: 0...1)
+                            Text("\(Int(style.backgroundOpacity * 100))%").monospacedDigit()
+                                .frame(width: 40, alignment: .trailing)
+                        }
+                    }
+                    ColorPicker("Màu viền", selection: color(\.borderColor))
+                    LabeledContent("Độ dày viền") {
+                        HStack {
+                            Slider(value: themed(\.borderWidth), in: 0...4, step: 0.5)
+                            Text(String(format: "%.1f", style.borderWidth)).monospacedDigit()
+                                .frame(width: 40, alignment: .trailing)
+                        }
+                    }
+                    Toggle("Viền phát sáng (neon)", isOn: themed(\.glow))
+                }
+                ColorPicker("Màu chấm chỉ báo và vạch ngăn", selection: color(\.indicatorColor))
+            }
+
+            LabeledContent("Khoảng cách giữa icon") {
+                HStack {
+                    Slider(value: $style.iconGap, in: 0...24, step: 1)
+                    Text("\(Int(style.iconGap))").monospacedDigit().frame(width: 40, alignment: .trailing)
+                }
+            }
+            if style.background != .none {
+                LabeledContent("Bo góc") {
+                    HStack {
+                        Text("Vuông").font(.caption).foregroundStyle(.secondary)
+                        Slider(value: $style.cornerRoundness, in: 0...0.5)
+                        Text("Tròn").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            HStack {
+                Spacer()
+                Button("Khôi phục mặc định") { style = DockStyle() }
+                    .disabled(style == DockStyle())
+                    .help("Đưa chủ đề, nền, màu, khoảng cách và bo góc của Dock này về như ban đầu")
+            }
+        }
+    }
+
+    private func swatch(_ theme: DockTheme) -> some View {
+        let colors = theme == .custom
+            ? (fill: style.backgroundColor.nsColor, stroke: style.borderColor.nsColor.withAlphaComponent(1))
+            : theme.swatch
+        let selected = style.theme == theme
+        return VStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(nsColor: colors.fill))
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: colors.stroke), lineWidth: 1.5))
+                .overlay {
+                    if theme == .system {
+                        Image(systemName: "circle.lefthalf.filled").foregroundStyle(.secondary)
+                    }
+                }
+                .frame(width: 44, height: 22)
+                .padding(3)
+                .overlay(RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 2))
+            Text(theme.title).font(.caption2).lineLimit(1)
+                .foregroundStyle(selected ? .primary : .secondary)
+        }
+        .frame(minWidth: 84)
+        .contentShape(Rectangle())
+    }
+
+    private func markCustom() {
+        if style.theme != .custom { style.theme = .custom }
+    }
+
+    private func themed<T>(_ key: WritableKeyPath<DockStyle, T>) -> Binding<T> {
+        Binding(get: { style[keyPath: key] }, set: {
+            style[keyPath: key] = $0
+            markCustom()
+        })
+    }
+
+    private func color(_ key: WritableKeyPath<DockStyle, RGBAColor>) -> Binding<Color> {
+        Binding(get: { Color(nsColor: style[keyPath: key].nsColor) }, set: {
+            style[keyPath: key] = RGBAColor(NSColor($0))
+            markCustom()
+        })
     }
 }
 

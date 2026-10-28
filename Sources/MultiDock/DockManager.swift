@@ -21,6 +21,10 @@ final class DockManager {
     /// changes screen parameters and so passes through reconcile.
     private var systemDockEdge = SystemDock.edge
 
+    /// Mirrors the config's custom icons; the store still holds the previous value
+    /// while reconcile runs.
+    private(set) var customIcons: [String: String] = [:]
+
     var controllers: [DockController] {
         store.config.docks.compactMap { byID[$0.id] }
     }
@@ -144,6 +148,7 @@ final class DockManager {
 
     private func reconcile(_ cfg: AppConfig) {
         systemDockEdge = SystemDock.edge
+        customIcons = cfg.customIcons
         let screens = Dictionary(NSScreen.screens.map { ($0.stableID, $0) }, uniquingKeysWith: { a, _ in a })
         var alive = Set<UUID>()
         for dock in cfg.docks {

@@ -118,6 +118,7 @@ struct DockConfig: Codable, Identifiable, Equatable {
     var bounceOnLaunch = true
     var dimHiddenApps = false
     var locked = false
+    var style = DockStyle()
     var items: [DockItem] = []
 
     init(screenID: String, screenName: String, edge: DockEdge = .bottom) {
@@ -151,6 +152,7 @@ struct DockConfig: Codable, Identifiable, Equatable {
         bounceOnLaunch = try value(.bounceOnLaunch, true)
         dimHiddenApps = try value(.dimHiddenApps, false)
         locked = try value(.locked, false)
+        style = try value(.style, DockStyle())
         items = try value(.items, [])
     }
 
@@ -166,6 +168,8 @@ struct AppConfig: Codable, Equatable {
     var docks: [DockConfig] = []
     /// Bundle paths of recently used apps, newest first.
     var recentApps: [String] = []
+    /// Image paths the user chose, keyed by the app bundle, folder or file they replace.
+    var customIcons: [String: String] = [:]
 
     init() {}
 
@@ -173,5 +177,6 @@ struct AppConfig: Codable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         docks = try c.decodeIfPresent([DockConfig].self, forKey: .docks) ?? []
         recentApps = try c.decodeIfPresent([String].self, forKey: .recentApps) ?? []
+        customIcons = try c.decodeIfPresent([String: String].self, forKey: .customIcons) ?? [:]
     }
 }

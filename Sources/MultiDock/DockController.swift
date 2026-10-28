@@ -62,7 +62,7 @@ final class DockController {
         dockView.frame = NSRect(origin: isAutoHidden ? hiddenOffset : .zero, size: frame.size)
         dockView.configure(edge: cfg.edge, iconSize: size, magnifiedSize: magnified,
                            showIndicators: cfg.showIndicators, dimHidden: cfg.dimHiddenApps,
-                           locked: cfg.locked, scale: screen.backingScaleFactor)
+                           locked: cfg.locked, style: cfg.style, scale: screen.backingScaleFactor)
         refreshItems()
         (isFullScreen, yieldsToSystemDock) = readScreenState()
         updateAutoHide()
@@ -143,6 +143,11 @@ final class DockController {
         if !others.isEmpty {
             if !result.isEmpty { result.append(separator("sep-b")) }
             result += others
+        }
+        if let icons = manager?.customIcons, !icons.isEmpty {
+            for i in result.indices {
+                if let key = result[i].iconKey, let icon = icons[key] { result[i].iconPath = icon }
+            }
         }
         dockView.setItems(result)
     }
@@ -605,6 +610,16 @@ final class DockController {
             options.addItem(.separator())
             let sub = NSMenu()
             for other in others {
+        if let key = item.iconKey, let store {
+            options.addItem(.separator())
+            options.addItem(ActionMenuItem("Đổi biểu tượng…") {
+                // Let the menu finish closing before the open panel takes over.
+                DispatchQueue.main.async { CustomIcons.choose(for: key, name: item.title, store: store) }
+            })
+            if store.config.customIcons[key] != nil {
+                options.addItem(ActionMenuItem("Dùng biểu tượng gốc") { CustomIcons.reset(key, store: store) })
+            }
+        }
                 sub.addItem(ActionMenuItem(other.config.title) { [weak self, weak other] in
                     guard let self, let other else { return }
                     self.transfer(item, to: other, at: Int.max)

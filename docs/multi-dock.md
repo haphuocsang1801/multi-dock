@@ -57,6 +57,14 @@ Biểu tượng Dock trên menu bar → **Cài đặt…**:
 - **Vị trí**: màn hình, cạnh (dưới/trái/phải/trên).
 - **Kích thước và phóng to**: kích thước 16–128, bật/tắt phóng to và mức
   phóng to (giống Dock hệ thống).
+- **Giao diện** (riêng cho từng Dock): chủ đề màu (Hệ thống, macOS cổ điển,
+  Than chì, Đại dương, Hoàng hôn, Rừng, Neon hồng/xanh/chanh, Tùy chỉnh); nền
+  Kính (Liquid Glass, phủ màu theo chủ đề), Màu đặc hoặc Trong suốt (không
+  nền); màu nền và độ đậm, màu và độ dày viền, viền phát sáng kiểu neon, màu
+  chấm chỉ báo và vạch ngăn; khoảng cách giữa icon (0–24) và độ bo góc. Chủ đề
+  "Hệ thống" giữ giao diện mặc định theo Sáng/Tối; sửa một màu bất kỳ sẽ chuyển
+  sang "Tùy chỉnh". Nút **Khôi phục mặc định** đưa toàn bộ phần Giao diện của
+  Dock đó về như ban đầu.
 - **Hành vi**: tự động ẩn/hiện (kèm độ trễ và tốc độ), tự động ẩn khi màn
   hình đó có app toàn màn hình (mặc định bật; đưa chuột ra cạnh màn hình để
   hiện lại, giống Dock macOS — nhưng nếu Dock hệ thống nằm cùng cạnh thì
@@ -92,6 +100,12 @@ Thao tác trên Dock:
 - Chuột phải vào vạch ngăn hoặc nền Dock: bật/tắt ẩn, ẩn khi toàn màn hình, phóng to, vị trí,
   màn hình, khóa nội dung, Cài đặt Dock…
 - ⌘-click để hiện mục trong Finder.
+- **Đổi biểu tượng**: chuột phải vào app, thư mục hoặc file → Tùy chọn → Đổi
+  biểu tượng… rồi chọn ảnh (PNG, ICNS, JPEG…) hoặc một app để mượn icon của nó;
+  Dùng biểu tượng gốc để bỏ. Cũng làm được ở danh sách Mục đã ghim trong Cài đặt
+  (nút ảnh). Icon áp dụng cho app đó trên mọi Dock, kể cả khi app chỉ đang chạy
+  mà không ghim; ảnh được chép vào
+  `~/Library/Application Support/MultiDock/Icons/`.
 
 Tab **Chung**: mở cùng lúc đăng nhập; cấp quyền Trợ năng (không bắt buộc) để
 khi bấm app trên một Dock, cửa sổ của app nằm trên màn hình đó được đưa lên
