@@ -43,8 +43,11 @@ gần đây nếu bật) → thư mục/file đã ghim → Thùng rác.
 Dock tự theo **Cài đặt hệ thống › Giao diện**, không cần cài riêng:
 
 - **Sáng/Tối/Tự động**: nền kính, nhãn tên, chấm, vạch ngăn, Thùng rác.
-- **Liquid Glass** (thanh trượt Trong ↔ Phủ màu): nền Dock, nhãn tên, Stack
-  dùng kính chuẩn của macOS nên đổi theo.
+- **Liquid Glass** (thanh trượt Trong ↔ Phủ màu): nhãn tên và Stack dùng kính
+  chuẩn của macOS nên đổi theo. Nền Dock dựng lại kính của Dock hệ thống (hình
+  nền phía sau gần như rõ nét, mờ nhẹ, phủ một lớp tối/sáng) vì kính chuẩn hoặc
+  làm mờ đục cả nền, hoặc gợn sóng dày ở mép; thanh trượt càng về Phủ màu thì
+  lớp phủ càng đậm và mờ hơn.
 - **Kiểu biểu tượng và tiện ích** (Mặc định/Tối/Trong/Phủ màu, Luôn luôn/Tự
   động) và **Màu thư mục**: icon được vẽ lại ngay khi đổi.
 - **Giảm độ trong suốt / Tăng độ tương phản** (Trợ năng): kính tự đổi theo.

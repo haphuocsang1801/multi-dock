@@ -13,6 +13,7 @@ final class DockManager {
     private var screenObserver: NSObjectProtocol?
     private var appearanceObservers: [NSObjectProtocol] = []
     private var appearanceObservation: NSKeyValueObservation?
+    private var glassTintObservation: NSKeyValueObservation?
     private var iconReloadPending = false
     private var pointerMonitors: [Any] = []
     private var quickWatch: Timer?
@@ -86,6 +87,15 @@ final class DockManager {
                 [weak self] _ in self?.scheduleIconReload()
             })
         }
+        // The Liquid Glass slider (Clear ↔ Tinted) and Reduce Transparency only
+        // restyle the dock glass. System Settings writes the slider to the global
+        // defaults, which KVO reports even when another process changes them.
+        glassTintObservation = UserDefaults.standard.observe(\.NSGlassTintAmount) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.byID.values.forEach { $0.dockView.refreshGlass() } }
+        }
+        appearanceObservers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.byID.values.forEach { $0.dockView.refreshGlass() } })
         appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
             DispatchQueue.main.async { self?.scheduleIconReload() }
         }
@@ -181,4 +191,9 @@ final class DockManager {
             return controller.dockView.dropRegion(margin: margin)?.contains(point) ?? false
         }
     }
+}
+
+private extension UserDefaults {
+    /// System Settings › Appearance › Liquid Glass: 0 is Clear, 1 is Tinted.
+    @objc dynamic var NSGlassTintAmount: Double { double(forKey: "NSGlassTintAmount") }
 }

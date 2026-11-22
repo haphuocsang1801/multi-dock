@@ -131,8 +131,8 @@ final class DockView: NSView {
     // MARK: - Setup
 
     override init(frame: NSRect) {
-        if #available(macOS 26.0, *) {
-            plate = NSGlassEffectView()
+        if let glass = DockGlassView.make() {
+            plate = glass
         } else {
             let effect = NSVisualEffectView()
             effect.material = .hudWindow
@@ -144,9 +144,7 @@ final class DockView: NSView {
         wantsLayer = true
         layerContentsRedrawPolicy = .never
         plate.wantsLayer = true
-        if plate is NSVisualEffectView {
-            plate.layer?.masksToBounds = true
-        }
+        plate.layer?.masksToBounds = true
         decor.wantsLayer = true
         decor.layer?.shadowOffset = .zero
         iconHost.wantsLayer = true
@@ -308,6 +306,9 @@ final class DockView: NSView {
         return CGRect(x: max(0, size * 0.98 - w), y: size - h, width: w, height: h)
     }
 
+    /// Picks up the Liquid Glass tint or Reduce Transparency.
+    func refreshGlass() { updateColors() }
+
     /// Applies the theme: plate kind, fill, border, glow, indicator and separator colors.
     private func updateColors() {
         let s = style
@@ -324,9 +325,8 @@ final class DockView: NSView {
             let fill = s.backgroundColor.nsColor
             let fillAlpha = fill.alphaComponent * CGFloat(min(max(s.backgroundOpacity, 0), 1))
             plate.isHidden = s.background != .glass
-            if #available(macOS 26.0, *), let glass = plate as? NSGlassEffectView {
-                glass.tintColor = s.usesSystemColors ? nil : fill.withAlphaComponent(fillAlpha)
-            }
+            let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            (plate as? DockGlassView)?.update(systemWash: s.usesSystemColors, dark: dark)
 
             guard let layer = decor.layer else { return }
             decor.isHidden = s.background == .none
@@ -336,16 +336,15 @@ final class DockView: NSView {
                     : fill.withAlphaComponent(fillAlpha)
                 layer.backgroundColor = color.cgColor
             case .glass where !s.usesSystemColors:
-                // The glass tint alone barely shows (and the HUD material has none),
-                // so a translucent wash over the glass carries the color.
+                // A translucent wash over the glass carries the theme color.
                 layer.backgroundColor = fill.withAlphaComponent(fillAlpha * 0.6).cgColor
             default:
                 layer.backgroundColor = nil
             }
-            // The system glass draws its own rim; the older material and themes need one.
-            let systemRim = s.usesSystemColors && (s.background == .solid || plate is NSVisualEffectView)
-            let border = s.usesSystemColors ? NSColor.white.withAlphaComponent(0.2) : s.borderColor.nsColor
-            layer.borderWidth = systemRim || !s.usesSystemColors ? CGFloat(max(0, s.borderWidth)) : 0
+            // The system Dock's glass has a brighter rim than its solid plate.
+            let rim: CGFloat = s.background == .glass ? 0.32 : 0.2
+            let border = s.usesSystemColors ? NSColor.white.withAlphaComponent(rim) : s.borderColor.nsColor
+            layer.borderWidth = CGFloat(max(0, s.borderWidth))
             layer.borderColor = border.cgColor
             let glow = s.glow && !s.usesSystemColors && s.borderWidth > 0
             layer.shadowColor = border.withAlphaComponent(1).cgColor
@@ -533,11 +532,7 @@ final class DockView: NSView {
         maxIconSize = maxSize
         let plateFrame = viewRect(u: strip.plateStart, v: DockGeometry.edgeGap,
                                   du: strip.plateEnd - strip.plateStart, dv: g.plateThickness).integral
-        if #available(macOS 26.0, *), let glass = plate as? NSGlassEffectView {
-            glass.cornerRadius = g.cornerRadius
-        } else {
-            plate.layer?.cornerRadius = g.cornerRadius
-        }
+        plate.layer?.cornerRadius = g.cornerRadius
         decor.layer?.cornerRadius = g.cornerRadius
         // Always go through the animator: a zero-duration set also cancels an
         // in-flight resize, so pointer moves never fight an exit animation.
