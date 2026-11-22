@@ -33,6 +33,20 @@ build app trên runner `macos-26` mỗi khi push lên `main` hoặc mở PR, và
 `MultiDock.zip` vào trang của lần chạy đó. Để phát hành, push một tag dạng
 `v1.2.0`: workflow ghi số phiên bản vào app rồi tạo GitHub Release kèm file zip.
 
+## Cập nhật trong app
+
+**Cài đặt… › Chung › Cập nhật** tự hỏi GitHub bản phát hành mới nhất
+(`releases/latest` của repo, nên repo phải để public) và so với
+`CFBundleShortVersionString`. Có bản mới thì bấm **Cập nhật lên x.y.z**: app tải
+`MultiDock.zip`, giải nén, kiểm tra chữ ký vẫn là `identifier
+"com.hasang.multidock"` (không khớp thì hủy), rồi thoát. Một script nhỏ đợi app
+thoát, thay bundle ở đúng chỗ đang cài (lỗi thì trả lại bản cũ), xóa cờ
+quarantine và mở lại app. Vì chữ ký giữ nguyên identifier nên quyền Trợ năng và
+mục mở khi đăng nhập vẫn còn. Thư mục chứa app phải ghi được.
+
+Bản build tại máy giữ số phiên bản `1.0.0` trong `Resources/Info.plist`, nên
+luôn thấy có bản mới; chỉ bản do CI build từ tag mới mang đúng số phiên bản.
+
 ## Sử dụng
 
 Giao diện bám theo Dock của macOS (đo trực tiếp từ Dock hệ thống): các ô icon

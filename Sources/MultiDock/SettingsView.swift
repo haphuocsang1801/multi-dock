@@ -423,6 +423,7 @@ struct GeneralSettingsView: View {
                 Text("Không bắt buộc. Khi có quyền, bấm vào app trên một Dock sẽ đưa đúng cửa sổ của app nằm trên màn hình đó lên trước, và cửa sổ phóng to sẽ dừng ở mép Dock thay vì nằm dưới Dock.")
                     .foregroundStyle(.secondary)
             }
+            UpdateSection()
             Section {
                 Text("Mẹo: kéo app từ Finder thả vào Dock để ghim, kéo icon ra ngoài để xóa, kéo sang Dock khác để chuyển. Thả file lên icon app để mở bằng app đó. Bấm chuột phải vào Dock để đổi nhanh vị trí và tùy chọn.")
                     .foregroundStyle(.secondary)
@@ -430,5 +431,52 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .onReceive(poll) { _ in axTrusted = AppActions.isAccessibilityTrusted }
+    }
+}
+
+/// Checks GitHub for a newer release when shown; one click installs it.
+struct UpdateSection: View {
+    @ObservedObject private var updater = Updater.shared
+
+    var body: some View {
+        Section("Cập nhật") {
+            LabeledContent("Phiên bản hiện tại", value: updater.currentVersion)
+            HStack {
+                status
+                Spacer()
+                action
+            }
+        }
+        .onAppear { if updater.state == .idle { updater.check() } }
+    }
+
+    @ViewBuilder private var status: some View {
+        switch updater.state {
+        case .idle:
+            EmptyView()
+        case .checking:
+            ProgressView().controlSize(.small)
+            Text("Đang kiểm tra…").foregroundStyle(.secondary)
+        case .upToDate:
+            Label("Bạn đang dùng bản mới nhất", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+        case let .available(version, _):
+            Label("Đã có bản \(version)", systemImage: "arrow.down.circle.fill").foregroundStyle(.blue)
+        case .installing:
+            ProgressView().controlSize(.small)
+            Text("Đang tải và cài đặt, app sẽ tự mở lại…").foregroundStyle(.secondary)
+        case let .failed(message):
+            Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+        }
+    }
+
+    @ViewBuilder private var action: some View {
+        switch updater.state {
+        case let .available(version, _):
+            Button("Cập nhật lên \(version)") { updater.install() }.buttonStyle(.borderedProminent)
+        case .idle, .upToDate, .failed:
+            Button("Kiểm tra cập nhật") { updater.check() }
+        case .checking, .installing:
+            EmptyView()
+        }
     }
 }
