@@ -156,6 +156,7 @@ final class DockController {
             if !result.isEmpty { result.append(separator("sep-b")) }
             result += others
         }
+        for i in result.indices { result[i].badge = monitor.badge(for: result[i]) }
         if let icons = manager?.customIcons, !icons.isEmpty {
             for i in result.indices {
                 if let key = result[i].iconKey, let icon = icons[key] { result[i].iconPath = icon }

@@ -12,6 +12,8 @@ final class RunningAppsMonitor {
     /// The display the system Dock is showing on, if it is showing. It moves to
     /// whichever display the pointer lingers at the bottom of.
     private(set) var systemDockScreenID: String?
+    /// Notification badges from the system Dock, keyed by bundle path (needs Accessibility).
+    private(set) var badges: [String: String] = [:]
 
     var onChange: (() -> Void)?
     /// Called with an app's bundle URL when it launches or quits (feeds "recent apps").
@@ -27,6 +29,7 @@ final class RunningAppsMonitor {
 
     private var timer: Timer?
     private var refreshWork: DispatchWorkItem?
+    private var lastBadgeRead = Date.distantPast
     private var observers: [NSObjectProtocol] = []
     private let selfPID = ProcessInfo.processInfo.processIdentifier
 
@@ -74,6 +77,11 @@ final class RunningAppsMonitor {
         pidsByScreen[screenID] ?? []
     }
 
+    func badge(for item: DisplayItem) -> String? {
+        guard item.isApp, let url = item.fileURL else { return nil }
+        return badges[SystemDockMenu.bundlePath(url)]
+    }
+
     func runningApp(for item: DockItem) -> NSRunningApplication? {
         guard item.kind == .app else { return nil }
         return apps.first { app in
@@ -96,15 +104,25 @@ final class RunningAppsMonitor {
         let scan = needsWindowTracking ? scanWindows() : (pidsByScreen: [:], systemDock: nil)
         let newHidden = Set(newApps.filter(\.isHidden).map(\.processIdentifier))
         let newSpaces = NSScreen.spaces
+        let newBadges = needsWindowTracking ? currentBadges() : [:]
         let changed = newApps.map(\.processIdentifier) != apps.map(\.processIdentifier)
             || scan.pidsByScreen != pidsByScreen || newHidden != hiddenPIDs || newSpaces != spaces
-            || scan.systemDock != systemDockScreenID
+            || scan.systemDock != systemDockScreenID || newBadges != badges
         apps = newApps
+        badges = newBadges
         pidsByScreen = scan.pidsByScreen
         systemDockScreenID = scan.systemDock
         hiddenPIDs = newHidden
         spaces = newSpaces
         if changed { onChange?() }
+    }
+
+    /// Badges change at most every second or so, while refresh can run ten times
+    /// a second near the system Dock, so the Dock is asked at most once a second.
+    private func currentBadges() -> [String: String] {
+        guard Date().timeIntervalSince(lastBadgeRead) >= 1 else { return badges }
+        lastBadgeRead = Date()
+        return SystemDockMenu.badges()
     }
 
     private func updateTimer() {

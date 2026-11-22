@@ -4,7 +4,8 @@ import AppKit
 /// commands (applicationDockMenu, e.g. Chrome profiles), Show All Windows, Hide,
 /// Quit. Apps hand that menu only to the Dock, so it is read from the Dock's
 /// accessibility tree and its commands are replayed there. The system Dock's
-/// menu is open for about a tenth of a second while this happens.
+/// menu is open for about a tenth of a second while this happens. The same tree
+/// also carries each app's notification badge.
 enum SystemDockMenu {
     struct Entry {
         let title: String
@@ -61,6 +62,31 @@ enum SystemDockMenu {
         }
     }
 
+    // MARK: - Badges
+
+    private static let badgeAttributes = [kAXURLAttribute, "AXStatusLabel"] as CFArray
+
+    /// The badge each app shows in the system Dock (unread counts and the like),
+    /// keyed by bundle path. Apps set it only on their own Dock tile, and the Dock
+    /// posts no notification when it changes, so callers poll this.
+    static func badges() -> [String: String] {
+        guard AXIsProcessTrusted() else { return [:] }
+        var result: [String: String] = [:]
+        for tile in dockTiles() {
+            var values: CFArray?
+            guard AXUIElementCopyMultipleAttributeValues(tile, badgeAttributes, [], &values) == .success,
+                  let v = values as? [Any], v.count == 2,
+                  let url = v[0] as? URL, let label = v[1] as? String, !label.isEmpty else { continue }
+            result[bundlePath(url)] = label
+        }
+        return result
+    }
+
+    /// How badges and dock items name an app bundle, so the two can be matched.
+    static func bundlePath(_ url: URL) -> String {
+        url.resolvingSymlinksInPath().standardizedFileURL.path
+    }
+
     // MARK: - Accessibility
 
     private static func withOpenMenu<T>(for app: NSRunningApplication, cancel: Bool = true,
@@ -78,14 +104,18 @@ enum SystemDockMenu {
         return result
     }
 
-    private static func dockTile(for app: NSRunningApplication) -> AXUIElement? {
+    /// The system Dock's tiles, in order (apps, separators, folders, Trash).
+    private static func dockTiles() -> [AXUIElement] {
         guard let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first
-        else { return nil }
+        else { return [] }
         let root = AXUIElementCreateApplication(dock.processIdentifier)
         AXUIElementSetMessagingTimeout(root, 0.5)
-        guard let list = copyChildren(root).first else { return nil }
+        return copyChildren(root).first.map(copyChildren) ?? []
+    }
+
+    private static func dockTile(for app: NSRunningApplication) -> AXUIElement? {
         let bundle = app.bundleURL?.resolvingSymlinksInPath().standardizedFileURL
-        let tiles = copyChildren(list)
+        let tiles = dockTiles()
         if let bundle, let tile = tiles.first(where: { tile in
             var url: CFTypeRef?
             AXUIElementCopyAttributeValue(tile, kAXURLAttribute as CFString, &url)

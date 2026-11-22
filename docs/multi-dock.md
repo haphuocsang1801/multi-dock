@@ -100,6 +100,11 @@ Thao tác trên Dock:
 - Chuột phải vào vạch ngăn hoặc nền Dock: bật/tắt ẩn, ẩn khi toàn màn hình, phóng to, vị trí,
   màn hình, khóa nội dung, Cài đặt Dock…
 - ⌘-click để hiện mục trong Finder.
+- **Badge thông báo**: số tin chưa đọc (hoặc chấm, chữ) mà app gắn lên icon
+  hiện ở góc trên bên phải, giống Dock hệ thống. App chỉ gắn badge lên icon của
+  mình trong Dock hệ thống, nên MultiDock đọc lại badge từ đó qua quyền Trợ năng
+  (khoảng 2 giây một lần). Tắt badge của một app ở **Cài đặt hệ thống › Thông
+  báo** thì MultiDock cũng ẩn theo.
 - **Đổi biểu tượng**: chuột phải vào app, thư mục hoặc file → Tùy chọn → Đổi
   biểu tượng… rồi chọn ảnh (PNG, ICNS, JPEG…) hoặc một app để mượn icon của nó;
   Dùng biểu tượng gốc để bỏ. Cũng làm được ở danh sách Mục đã ghim trong Cài đặt
@@ -109,7 +114,8 @@ Thao tác trên Dock:
 
 Tab **Chung**: mở cùng lúc đăng nhập; cấp quyền Trợ năng (không bắt buộc) để
 khi bấm app trên một Dock, cửa sổ của app nằm trên màn hình đó được đưa lên
-trước, để menu chuột phải liệt kê các cửa sổ, và để giữ chỗ cho Dock.
+trước, để menu chuột phải liệt kê các cửa sổ, để hiện badge thông báo, và để
+giữ chỗ cho Dock.
 
 **Giữ chỗ cho Dock**: macOS chỉ chừa chỗ cho Dock hệ thống, nên cửa sổ phóng
 to (nút xanh, bấm đúp thanh tiêu đề, Cửa sổ › Lấp đầy, xếp ô) vẫn phủ xuống
@@ -156,7 +162,9 @@ quay về mặc định.
   phủ kín màn hình trong chốc lát rồi mới co lên. Cửa sổ đã phóng to từ trước khi
   bật tính năng chỉ được cắt ở lần đổi cỡ kế tiếp. App có kích thước tối thiểu
   lớn hơn chỗ còn lại hoặc không cho đổi cỡ qua Trợ năng thì không co được.
-- Không có badge thông báo (cần API riêng của Apple).
+- Badge thông báo cập nhật chậm hơn Dock hệ thống tới khoảng 2 giây (Dock hệ
+  thống không báo khi badge đổi nên MultiDock phải đọc định kỳ), và cần quyền
+  Trợ năng.
 - Menu chuột phải là menu chuẩn của macOS, không có mũi tên chỉ vào icon như
   menu của Dock hệ thống.
 - Các cài đặt về thu nhỏ cửa sổ (hiệu ứng Genie/Thu nhỏ, thu nhỏ vào biểu

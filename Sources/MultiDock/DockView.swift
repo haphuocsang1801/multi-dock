@@ -15,6 +15,8 @@ struct DisplayItem: Equatable {
     var isRunning: Bool
     var isHidden = false
     var iconPath: String?
+    /// The app's notification badge, as the system Dock shows it.
+    var badge: String?
 
     var isApp: Bool { kind == .running || kind == .recent || dockItem?.kind == .app }
     var isFolder: Bool { dockItem?.kind == .folder }
@@ -106,6 +108,11 @@ final class DockView: NSView {
     private final class SlotLayers {
         let icon = CALayer()
         let dot = CALayer()
+        /// A sublayer of the icon, so it scales, bounces and fades with it.
+        let badge = CALayer()
+        var badgeKey: String?
+        /// Badge width over height; labels with more characters make a wider pill.
+        var badgeAspect: CGFloat = 1
         var pixelSize = 0
         var iconPath: String?
         /// The undimmed icon while the slot shows as pressed.
@@ -193,7 +200,7 @@ final class DockView: NSView {
         guard changed || frame.size != iconHost.frame.size else { return }
         iconHost.frame = bounds
         updateEffectiveGeometry()
-        if scaleChanged { layers.values.forEach { $0.pixelSize = 0 } }
+        if scaleChanged { layers.values.forEach { $0.pixelSize = 0; $0.badgeKey = nil } }
         loadIcons()
         relayout(animated: false)
     }
@@ -221,6 +228,10 @@ final class DockView: NSView {
             slot.icon.magnificationFilter = .linear
             slot.icon.contentsScale = scale
             slot.dot.cornerRadius = geometry.dotSize / 2
+            slot.badge.contentsGravity = .resizeAspect
+            slot.badge.minificationFilter = .trilinear
+            slot.badge.contentsScale = scale
+            slot.icon.addSublayer(slot.badge)
             iconHost.layer?.addSublayer(slot.icon)
             iconHost.layer?.addSublayer(slot.dot)
             layers[item.key] = slot
@@ -267,6 +278,7 @@ final class DockView: NSView {
         let pixelSize = iconPixelSize
         for item in items where item.kind != .separator {
             guard let slot = layers[item.key] else { continue }
+            loadBadge(item.badge, into: slot, pixelSize: pixelSize)
             let path = item.iconPath ?? item.dockItem?.path ?? item.appURL?.path
             guard slot.pixelSize != pixelSize || slot.iconPath != path else { continue }
             slot.pixelSize = pixelSize
@@ -275,6 +287,25 @@ final class DockView: NSView {
             slot.normalContents = nil
             slot.icon.contents = IconCache.shared.image(path: path, app: item.app, pixelSize: pixelSize)
         }
+    }
+
+    private func loadBadge(_ label: String?, into slot: SlotLayers, pixelSize: Int) {
+        let height = Int((CGFloat(pixelSize) * BadgeRenderer.heightRatio).rounded(.up))
+        let key = label.map { "\($0)#\(height)" }
+        guard slot.badgeKey != key else { return }
+        slot.badgeKey = key
+        let image = label.flatMap { BadgeRenderer.image(label: $0, pixelHeight: height) }
+        slot.badge.contents = image
+        slot.badge.contentsScale = scale
+        slot.badge.isHidden = image == nil
+        if let image { slot.badgeAspect = CGFloat(image.width) / CGFloat(image.height) }
+    }
+
+    /// Top-right of the icon, whichever edge the dock is on, like the system Dock.
+    private func badgeFrame(_ slot: SlotLayers, iconSize size: CGFloat) -> CGRect {
+        let h = (size * BadgeRenderer.heightRatio).rounded()
+        let w = min(h * slot.badgeAspect, size)
+        return CGRect(x: max(0, size * 0.98 - w), y: size - h, width: w, height: h)
     }
 
     /// Applies the theme: plate kind, fill, border, glow, indicator and separator colors.
@@ -451,6 +482,7 @@ final class DockView: NSView {
             for (j, entry) in list.enumerated() {
                 guard let i = entry, freshKeys.contains(items[i].key), let slot = layers[items[i].key] else { continue }
                 slot.icon.frame = iconFrame(items[i], start: strip.starts[j], size: strip.sizes[j])
+                slot.badge.frame = badgeFrame(slot, iconSize: strip.sizes[j])
                 slot.icon.opacity = 0
                 slot.dot.opacity = 0
             }
@@ -474,10 +506,12 @@ final class DockView: NSView {
                 // Follow the pointer immediately instead of finishing an older animation.
                 for key in ["position", "bounds"] {
                     slot.icon.removeAnimation(forKey: key)
+                    slot.badge.removeAnimation(forKey: key)
                     slot.dot.removeAnimation(forKey: key)
                 }
             }
             slot.icon.frame = iconFrame(item, start: start, size: size)
+            slot.badge.frame = badgeFrame(slot, iconSize: size)
             slot.icon.opacity = dimHidden && item.isHidden ? 0.5 : 1
             slot.icon.transform = item.key == dropTargetKey
                 ? CATransform3DMakeScale(1.15, 1.15, 1) : CATransform3DIdentity
@@ -1063,5 +1097,45 @@ final class DockView: NSView {
         relayout(animated: true)
         controller?.hoverChanged(false)
         return true
+    }
+}
+
+/// Draws the red notification badge the system Dock puts on an app icon.
+enum BadgeRenderer {
+    /// Badge height relative to the icon tile, measured from the system Dock.
+    static let heightRatio: CGFloat = 0.36
+    /// Longer labels are cut, as the system Dock does, so the pill stays on the icon.
+    private static let maxCharacters = 5
+    private static var cache: [String: CGImage] = [:]
+
+    static func image(label: String, pixelHeight: Int) -> CGImage? {
+        let key = "\(label)#\(pixelHeight)"
+        if let cached = cache[key] { return cached }
+        let text = label.count > maxCharacters ? label.prefix(maxCharacters - 1) + "…" : label
+        let h = CGFloat(pixelHeight)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: h * 0.62, weight: .medium),
+            .foregroundColor: NSColor.white,
+        ]
+        let string = NSAttributedString(string: String(text), attributes: attributes)
+        let textSize = string.size()
+        let width = Int(max(h, textSize.width + h * 0.62).rounded(.up))
+        guard pixelHeight > 0, let ctx = CGContext(
+            data: nil, width: width, height: pixelHeight, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: false)
+        let pill = NSRect(x: 0, y: 0, width: CGFloat(width), height: h)
+        // The Dock uses the same red in light and dark mode.
+        NSColor(srgbRed: 1, green: 0.231, blue: 0.188, alpha: 1).setFill()
+        NSBezierPath(roundedRect: pill, xRadius: h / 2, yRadius: h / 2).fill()
+        string.draw(at: NSPoint(x: (pill.width - textSize.width) / 2, y: (h - textSize.height) / 2))
+        NSGraphicsContext.restoreGraphicsState()
+        let image = ctx.makeImage()
+        if cache.count > 200 { cache.removeAll() }
+        cache[key] = image
+        return image
     }
 }
